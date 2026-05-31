@@ -261,12 +261,12 @@ button:hover {
     <div class="card">
       <div class="formgrid">
         <div>
-          <label for="area"><b>Wohnfläche</b> in m²</label>
-          <input id="area" type="text" inputmode="decimal" value="100,52" min="15" max="234" step="0.01">
+          <label for="wohnung"><b>Wohnung</b></label>
+          <input id="wohnung" type="text">
         </div>
         <div>
-          <label for="lage"><b>Lagekategorie</b></label>
-          <select id="lage"></select>
+          <label for="area"><b>Wohnfläche</b> in m²</label>
+          <input id="area" type="text" inputmode="decimal" value="100,52" min="15" max="234" step="0.01">
         </div>
         <div>
           <label for="addrSearch"><b>Adresse suchen</b> <span class="small">(optional)</span></label>
@@ -275,6 +275,10 @@ button:hover {
             <div id="addrSuggest" class="suggestions"></div>
           </div>
           <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
+        </div>
+        <div>
+          <label for="lage"><b>Lagekategorie</b></label>
+          <select id="lage"></select>
         </div>
       </div>
     </div>
@@ -777,8 +781,10 @@ function createPDF(){
   y += 7;
 
   const selectedLage = lageSel.options[lageSel.selectedIndex] ? lageSel.options[lageSel.selectedIndex].textContent : "";
+  const wohnung = document.getElementById("wohnung")?.value.trim() || "nicht angegeben";
   const adr = addrSearch.value.trim() || "nicht angegeben";
 
+  row("Wohnung", wohnung, y); y += 7;
   row("Wohnfläche", numPDF(a) + " m²", y); y += 7;
   row("Lagekategorie", selectedLage + " / " + numPDF(lagenzuschlag) + " €/m²", y); y += 7;
   row("Adresse", adr, y); y += 9;
