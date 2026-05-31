@@ -277,7 +277,7 @@ button:hover {
         </div>
         <div>
           <label for="area"><b>Wohnfläche</b> in m²</label>
-          <input id="area" type="text" inputmode="decimal" value="100,52" min="15" max="234" step="0.01">
+          <input id="area" type="text" inputmode="decimal" value="" min="15" max="234" step="0.01">
         </div>
         <div id="baualter2024Block" class="hidden">
           <label for="baualter2024"><b>Baualtersklasse</b></label>
@@ -390,7 +390,7 @@ for (let i=1; i<=10; i++) {
   const o = document.createElement("option");
   o.value = lage2026[i];
   o.textContent = "Lage " + i;
-  if (i === 9) o.selected = true;
+  if (i === 1) o.selected = true;
   lageSel.add(o);
 }
 
