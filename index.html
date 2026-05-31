@@ -678,8 +678,8 @@ function calc() {
       <div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div>
       <div class="label">Zulässige Höchstmiete</div>
       <div class="big">${euro(mpb)}</div>
-      <div class="label">Mietspiegel-Spanne</div>
-      <div class="big">${euro(spanLow)} – ${euro(spanHigh)}</div>
+      <div class="label">Obere Mietspiegelspanne</div>
+      <div class="big">${euro(spanHigh)}</div>
     </div>
 
     
@@ -825,7 +825,7 @@ function createPDF(){
   y += 7;
 
   row("Zulässige Höchstmiete (+10 %)", euroPDF(mpb), y); y += 7;
-  row("Mietspiegel-Spanne (-16 % bis +16 %)", euroPDF(spanLow) + " bis " + euroPDF(spanHigh), y); y += 11;
+  row("Obere Mietspiegelspanne (+16 %)", euroPDF(spanHigh), y); y += 11;
 
   // Features
   pdf.setFont("helvetica","bold");
