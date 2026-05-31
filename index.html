@@ -74,7 +74,7 @@ h1 {
 label {
   display:block;
 }
-input[type=number], select {
+input[type=number], input[type=text], select {
   width:100%;
   padding:11px;
   border:1px solid #cfcfcf;
@@ -115,16 +115,84 @@ input[type=number], select {
   color:#555;
   font-variant-numeric:tabular-nums;
 }
+
+.addr-wrap {
+  position:relative;
+}
+.suggestions {
+  position:absolute;
+  z-index:30;
+  top:calc(100% + 4px);
+  left:0;
+  right:0;
+  max-height:260px;
+  overflow:auto;
+  background:#fff;
+  border:1px solid #cfcfcf;
+  border-radius:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.16);
+  display:none;
+}
+.suggestion {
+  padding:9px 11px;
+  cursor:pointer;
+  border-bottom:1px solid #f0f0f0;
+}
+.suggestion:hover,
+.suggestion.active {
+  background:#f7f7f7;
+}
+.suggestion b {
+  color:var(--red);
+}
+.status {
+  margin-top:6px;
+  font-size:.86rem;
+  color:var(--muted);
+}
+.error {
+  color:var(--red);
+  font-weight:700;
+}
+
 .result {
   position:sticky;
   top:10px;
   border-top:5px solid var(--red);
 }
 .big {
-  font-size:1.65rem;
+  font-size:1.25rem;
   color:var(--red);
+  font-weight:750;
+  margin:6px 0;
+  text-align:center;
+  line-height:1.25;
+}
+.result-title {
+  text-align:center;
   font-weight:800;
-  margin-bottom:10px;
+  letter-spacing:.02em;
+  margin:14px 0 8px;
+}
+.result-values {
+  display:grid;
+  grid-template-columns:1fr;
+  gap:4px;
+  padding:8px 0 10px;
+  border-bottom:1px solid var(--line);
+}
+.result-box {
+  background:#fafafa;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  margin:12px 0;
+}
+.result-box .label {
+  text-align:center;
+  color:var(--muted);
+  font-size:.9rem;
+  margin-top:8px;
 }
 .row {
   display:flex;
@@ -3030,11 +3098,19 @@ button:hover {
       <div class="formgrid">
         <div>
           <label for="area"><b>Wohnfläche</b> in m²</label>
-          <input id="area" type="number" value="100,52" min="16" max="234" step="0.01">
+          <input id="area" type="text" inputmode="decimal" value="100,52" min="15" max="234" step="0.01">
         </div>
         <div>
           <label for="lage"><b>Lagekategorie</b></label>
           <select id="lage"></select>
+        </div>
+        <div>
+          <label for="addrSearch"><b>Adresse suchen</b> <span class="small">(optional)</span></label>
+          <div class="addr-wrap">
+            <input id="addrSearch" type="text" autocomplete="off" placeholder="z. B. Adalbertstraße 12a">
+            <div id="addrSuggest" class="suggestions"></div>
+          </div>
+          <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
         </div>
       </div>
     </div>
@@ -3102,6 +3178,14 @@ const feats = [
 const area = document.getElementById("area");
 const lageSel = document.getElementById("lage");
 const box = document.getElementById("features");
+const addrSearch = document.getElementById("addrSearch");
+const addrSuggest = document.getElementById("addrSuggest");
+const addrStatus = document.getElementById("addrStatus");
+
+let wohnlagen = {};
+let streetNames = [];
+let suggestionItems = [];
+let activeSuggestion = -1;
 
 for (let i=1; i<=10; i++) {
   const o = document.createElement("option");
@@ -3141,10 +3225,181 @@ function num(x) {
   return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
+
+function normText(v) {
+  return String(v || "")
+    .toLocaleLowerCase("de-DE")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normNr(v) {
+  return String(v || "")
+    .toLocaleLowerCase("de-DE")
+    .replace(/\s+/g, "")
+    .replace(/\./g, "")
+    .trim();
+}
+
+function splitAddressQuery(q) {
+  const s = String(q || "").trim().replace(/\s+/g, " ");
+  const m = s.match(/^(.*?)(?:\s+)(\d+\s*[a-zA-Z]?)$/);
+  if (!m) return {street:s, nr:""};
+  return {street:m[1].trim(), nr:normNr(m[2])};
+}
+
+function setLageKategorie(kat, sourceText) {
+  const idx = Math.max(1, Math.min(10, Number(kat))) - 1;
+  lageSel.selectedIndex = idx;
+  if (sourceText) addrStatus.innerHTML = sourceText;
+  calc();
+}
+
+function hideSuggestions() {
+  addrSuggest.style.display = "none";
+  addrSuggest.innerHTML = "";
+  suggestionItems = [];
+  activeSuggestion = -1;
+}
+
+function renderSuggestions(items) {
+  suggestionItems = items;
+  activeSuggestion = -1;
+  addrSuggest.innerHTML = "";
+  if (!items.length) {
+    hideSuggestions();
+    return;
+  }
+  items.forEach((it, idx) => {
+    const div = document.createElement("div");
+    div.className = "suggestion";
+    div.innerHTML = `${it.street} ${it.nr} <b>→ Lage ${it.lage}</b>`;
+    div.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      chooseSuggestion(idx);
+    });
+    addrSuggest.appendChild(div);
+  });
+  addrSuggest.style.display = "block";
+}
+
+function chooseSuggestion(idx) {
+  const it = suggestionItems[idx];
+  if (!it) return;
+  addrSearch.value = `${it.street} ${it.nr}`;
+  hideSuggestions();
+  setLageKategorie(it.lage, `Gewählte Adresse: <b>${it.street} ${it.nr}</b> → <b>Lage ${it.lage}</b>. Manuelle Änderung bleibt möglich.`);
+  save();
+}
+
+function updateAddressSuggestions() {
+  if (!streetNames.length) {
+    addrStatus.textContent = "Adressdaten werden geladen …";
+    return;
+  }
+  const raw = addrSearch.value.trim();
+  if (raw.length < 2) {
+    hideSuggestions();
+    addrStatus.textContent = "Adresse wählen oder Lage manuell einstellen.";
+    return;
+  }
+
+  const parsed = splitAddressQuery(raw);
+  const qStreet = normText(parsed.street || raw);
+  const qNr = normNr(parsed.nr);
+  const candidates = [];
+
+  const scoredStreets = streetNames
+    .map(street => {
+      const n = normText(street);
+      let score = -1;
+      if (n === qStreet) score = 0;
+      else if (n.startsWith(qStreet)) score = 1;
+      else if (n.includes(qStreet)) score = 2;
+      return {street, score};
+    })
+    .filter(x => x.score >= 0)
+    .sort((a,b) => a.score - b.score || a.street.localeCompare(b.street, "de-DE"))
+    .slice(0, 18);
+
+  for (const item of scoredStreets) {
+    const nums = Object.keys(wohnlagen[item.street] || {});
+    const matchedNums = qNr
+      ? nums.filter(n => normNr(n).startsWith(qNr)).slice(0, 8)
+      : nums.slice(0, 4);
+    for (const nr of matchedNums) {
+      candidates.push({street:item.street, nr, lage:wohnlagen[item.street][nr]});
+      if (candidates.length >= 24) break;
+    }
+    if (candidates.length >= 24) break;
+  }
+
+  if (!candidates.length) {
+    hideSuggestions();
+    addrStatus.innerHTML = '<span class="error">Keine Adresse gefunden. Lage kann weiterhin manuell gewählt werden.</span>';
+    return;
+  }
+
+  addrStatus.textContent = "Vorschlag auswählen oder Lage manuell einstellen.";
+  renderSuggestions(candidates);
+}
+
+function loadWohnlagen() {
+  fetch("wohnlagen_compact.json", {cache:"force-cache"})
+    .then(r => {
+      if (!r.ok) throw new Error("Adressdaten konnten nicht geladen werden");
+      return r.json();
+    })
+    .then(data => {
+      wohnlagen = data || {};
+      streetNames = Object.keys(wohnlagen);
+      addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen.";
+      updateAddressSuggestions();
+    })
+    .catch(() => {
+      addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>';
+    });
+}
+
+addrSearch.addEventListener("input", updateAddressSuggestions);
+addrSearch.addEventListener("focus", updateAddressSuggestions);
+addrSearch.addEventListener("keydown", (e) => {
+  if (addrSuggest.style.display !== "block") return;
+  const children = Array.from(addrSuggest.children);
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    activeSuggestion = Math.min(children.length - 1, activeSuggestion + 1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    activeSuggestion = Math.max(0, activeSuggestion - 1);
+  } else if (e.key === "Enter") {
+    if (activeSuggestion >= 0) {
+      e.preventDefault();
+      chooseSuggestion(activeSuggestion);
+    }
+    return;
+  } else if (e.key === "Escape") {
+    hideSuggestions();
+    return;
+  } else {
+    return;
+  }
+  children.forEach((el,i) => el.classList.toggle("active", i === activeSuggestion));
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".addr-wrap")) hideSuggestions();
+});
+lageSel.addEventListener("change", () => {
+  if (addrSearch.value.trim()) {
+    addrStatus.textContent = "Lage wurde manuell geändert.";
+  }
+});
+
 function save() {
   localStorage.setItem("ffm_mietspiegel_2026_final", JSON.stringify({
     area: area.value,
     lage: lageSel.selectedIndex,
+    address: addrSearch.value,
     checks: feats.map((_,i) => document.getElementById("f"+i).checked)
   }));
 }
@@ -3153,6 +3408,7 @@ function load() {
   try {
     const s = JSON.parse(localStorage.getItem("ffm_mietspiegel_2026_final") || "{}");
     if (s.area) area.value = s.area;
+    if (s.address) addrSearch.value = s.address;
     if (Number.isInteger(s.lage)) lageSel.selectedIndex = s.lage;
     (s.checks || []).forEach((v,i) => {
       const el = document.getElementById("f"+i);
@@ -3162,35 +3418,57 @@ function load() {
 }
 
 function calc() {
-  const a = parseDE(area.value) || 100;
+  if (!area.value.trim()) { document.getElementById("out").innerHTML = ""; return; }
+  const areaNum = parseDE(area.value);
+  if (!areaNum || areaNum < 15) {
+    document.getElementById("out").innerHTML = '<div class="result-box"><b>Wohnfläche mindestens 15 m²</b></div>';
+    save();
+    return;
+  }
+
+  const a = areaNum;
   const basisExact = baseRent(a);
   const basisShown = round2(basisExact);
 
-  let zuschlaege = parseDE(lageSel.value);
+  const lagenzuschlag = round2(parseDE(lageSel.value));
+  let merkmaleSum = 0;
   const active = [];
 
   feats.forEach((f,i) => {
     if (document.getElementById("f"+i).checked) {
-      zuschlaege += f[1];
+      merkmaleSum += f[1];
       active.push(f[0]);
     }
   });
 
-  zuschlaege = round2(zuschlaege);
+  merkmaleSum = round2(merkmaleSum);
 
   // Important: €/m² is rounded BEFORE multiplying by Wohnfläche.
-  const pm2Shown = round2(basisExact + zuschlaege);
+  const pm2Shown = round2(basisExact + lagenzuschlag + merkmaleSum);
   const orts = round2(pm2Shown * a);
-  const span = round2(orts * 1.16);
+  const spanLow = round2(orts * 0.84);
+  const spanHigh = round2(orts * 1.16);
   const mpb = round2(orts * 1.10);
 
   document.getElementById("out").innerHTML = `
-    <div class="big">${num(pm2Shown)} €/m²</div>
     <div class="row"><span>Basis-Netto-Miete</span><b>${num(basisShown)} €/m²</b></div>
-    <div class="row"><span>Zu-/Abschläge inkl. Lage</span><b>${num(zuschlaege)} €/m²</b></div>
-    <div class="row"><span>Ortsübliche Vergleichsmiete</span><b>${euro(orts)}</b></div>
-    <div class="row"><span>mit 16 % Spannenzuschlag</span><b>${euro(span)}</b></div>
-    <div class="row"><span>+10 % Orientierung Mietpreisbremse</span><b>${euro(mpb)}</b></div>
+    <div class="row"><span>Lagenzuschlag</span><b>${num(lagenzuschlag)} €/m²</b></div>
+    <div class="row"><span>Zu-/Abschläge</span><b>${num(merkmaleSum)} €/m²</b></div>
+
+    <div class="result-title">ORTSÜBLICHE VERGLEICHSMIETE</div>
+    <div class="result-values">
+      <div class="big">${num(pm2Shown)} €/m²</div>
+      <div class="big">${euro(orts)}</div>
+    </div>
+
+    <div class="result-box">
+      <div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div>
+      <div class="label">Zulässige Höchstmiete</div>
+      <div class="big">${euro(mpb)}</div>
+      <div class="label">Mietspiegel-Spanne</div>
+      <div class="big">${euro(spanLow)} – ${euro(spanHigh)}</div>
+    </div>
+
     <p class="small"><b>Aktive Merkmale:</b><br>${active.length ? active.join(", ") : "keine"}</p>
   `;
 
@@ -3198,6 +3476,7 @@ function calc() {
 }
 
 load();
+loadWohnlagen();
 document.addEventListener("input", calc);
 document.addEventListener("change", calc);
 calc();
