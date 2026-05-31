@@ -3127,10 +3127,9 @@ button:hover {
     <h2>Ergebnis</h2>
     <div id="out"></div>
     <p class="small">
-      Die Monatsmiete wird aus dem auf 2 Nachkommastellen gerundeten €/m²-Wert berechnet,
-      damit Anzeige und Multiplikation konsistent sind.
+      
     </p>
-    <button onclick="window.print()">Drucken / PDF</button>
+    <button onclick="createPDF()">Drucken / PDF</button>
   </aside>
 </main>
 
@@ -3469,7 +3468,7 @@ function calc() {
       <div class="big">${euro(spanLow)} – ${euro(spanHigh)}</div>
     </div>
 
-    <p class="small"><b>Aktive Merkmale:</b><br>${active.length ? active.join(", ") : "keine"}</p>
+    
   `;
 
   save();
@@ -3481,5 +3480,187 @@ document.addEventListener("input", calc);
 document.addEventListener("change", calc);
 calc();
 </script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+function createPDF(){
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+
+  const a = parseDE(area.value);
+  if (!a || a < 15) {
+    alert("Bitte zuerst eine gültige Wohnfläche ab 15 m² eingeben.");
+    return;
+  }
+
+  const basisExact = baseRent(a);
+  const basisShown = round2(basisExact);
+  const lagenzuschlag = round2(parseDE(lageSel.value));
+  let merkmaleSum = 0;
+  const active = [];
+
+  feats.forEach((f,i) => {
+    const el = document.getElementById("f"+i);
+    if (el && el.checked) {
+      merkmaleSum += f[1];
+      active.push({name:f[0], value:f[1]});
+    }
+  });
+
+  merkmaleSum = round2(merkmaleSum);
+  const pm2Shown = round2(basisExact + lagenzuschlag + merkmaleSum);
+  const orts = round2(pm2Shown * a);
+  const spanLow = round2(orts * 0.84);
+  const spanHigh = round2(orts * 1.16);
+  const mpb = round2(orts * 1.10);
+
+  const pageW = 210;
+  const pageH = 297;
+  const margin = 12;
+  const red = [177,0,33];
+  const dark = [35,35,35];
+  const grey = [95,95,95];
+
+  function euroPDF(x){ return euro(x); }
+  function numPDF(x){ return num(x); }
+
+  function text(txt,x,y,opt){
+    pdf.text(String(txt), x, y, opt || {});
+  }
+
+  function line(y){
+    pdf.setDrawColor(220,220,220);
+    pdf.line(margin, y, pageW-margin, y);
+  }
+
+  function row(label, value, y){
+    pdf.setFont("helvetica","normal");
+    pdf.setTextColor(...dark);
+    pdf.setFontSize(9);
+    text(label, margin, y);
+    pdf.setFont("helvetica","bold");
+    text(value, pageW-margin, y, {align:"right"});
+    line(y+2);
+  }
+
+  // Header
+  pdf.setFillColor(...red);
+  pdf.rect(0,0,pageW,24,"F");
+  pdf.setTextColor(255,255,255);
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(17);
+  text("Frankfurter Mietspiegel 2026", margin, 10);
+  pdf.setFont("helvetica","normal");
+  pdf.setFontSize(9);
+  text("Berechnung der ortsüblichen Vergleichsmiete", margin, 16);
+
+  // Meta
+  let y = 33;
+  pdf.setTextColor(...dark);
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(12);
+  text("Berechnungsgrundlagen", margin, y);
+  y += 7;
+
+  const selectedLage = lageSel.options[lageSel.selectedIndex] ? lageSel.options[lageSel.selectedIndex].textContent : "";
+  const adr = addrSearch.value.trim() || "nicht angegeben";
+
+  row("Wohnfläche", numPDF(a) + " m²", y); y += 7;
+  row("Lagekategorie", selectedLage + " / " + numPDF(lagenzuschlag) + " €/m²", y); y += 7;
+  row("Adresse", adr, y); y += 9;
+
+  // Main result box
+  pdf.setFillColor(250,250,250);
+  pdf.setDrawColor(210,210,210);
+  pdf.roundedRect(margin, y, pageW - margin*2, 42, 3, 3, "FD");
+
+  pdf.setTextColor(...red);
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(10);
+  text("ORTSÜBLICHE VERGLEICHSMIETE", pageW/2, y+8, {align:"center"});
+
+  pdf.setFontSize(20);
+  text(numPDF(pm2Shown) + " €/m²", pageW/2, y+21, {align:"center"});
+  pdf.setFontSize(18);
+  text(euroPDF(orts), pageW/2, y+34, {align:"center"});
+  y += 51;
+
+  // Calculation table
+  pdf.setTextColor(...dark);
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(12);
+  text("Berechnung", margin, y);
+  y += 7;
+
+  row("Basis-Netto-Miete", numPDF(basisShown) + " €/m²", y); y += 7;
+  row("Lagenzuschlag", numPDF(lagenzuschlag) + " €/m²", y); y += 7;
+  row("Summe Zu-/Abschläge", numPDF(merkmaleSum) + " €/m²", y); y += 7;
+  row("Gerundeter Wert", numPDF(pm2Shown) + " €/m²", y); y += 7;
+  row("Monatsmiete", euroPDF(orts), y); y += 10;
+
+  // Brake and range
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(12);
+  text("Mietpreisbremse & Mietspiegel-Spanne", margin, y);
+  y += 7;
+
+  row("Zulässige Höchstmiete (+10 %)", euroPDF(mpb), y); y += 7;
+  row("Mietspiegel-Spanne (-16 % bis +16 %)", euroPDF(spanLow) + " bis " + euroPDF(spanHigh), y); y += 11;
+
+  // Features
+  pdf.setFont("helvetica","bold");
+  pdf.setFontSize(12);
+  text("Aktive Merkmale", margin, y);
+  y += 6;
+
+  pdf.setFont("helvetica","normal");
+  pdf.setFontSize(7.6);
+  pdf.setTextColor(...dark);
+
+  if (!active.length) {
+    text("Keine Merkmale ausgewählt.", margin, y);
+    y += 5;
+  } else {
+    const colGap = 8;
+    const colW = (pageW - margin*2 - colGap) / 2;
+    const leftX = margin;
+    const rightX = margin + colW + colGap;
+    const startY = y;
+    const rowH = active.length > 22 ? 4.2 : 4.8;
+    const maxRows = Math.ceil(active.length / 2);
+
+    active.forEach((it, idx) => {
+      const inRight = idx >= maxRows;
+      const localIdx = inRight ? idx - maxRows : idx;
+      const x = inRight ? rightX : leftX;
+      const yy = startY + localIdx * rowH;
+
+      const val = (it.value >= 0 ? "+" : "") + numPDF(it.value) + " €/m²";
+      let name = String(it.name)
+        .replace(/≥/g, '>=')
+        .replace(/≤/g, '<=')
+        .replace(/[–—]/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const maxChars = 42;
+      if (name.length > maxChars) name = name.substring(0,maxChars-1) + '…';
+
+      pdf.setFont('courier','normal');
+      text(name, x, yy);
+      pdf.setFont('courier','bold');
+      text(val, x + colW, yy, {align:'right'});
+    });
+
+    y = startY + maxRows * rowH + 7;
+  }
+
+  text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 287, {align:"right"});
+
+  pdf.save("Mietspiegel-Ergebnis.pdf");
+}
+</script>
+
 </body>
 </html>
