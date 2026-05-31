@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Frankfurter Mietspiegel 2026</title>
+<title>Frankfurter Mietspiegel 2024 / 2026</title>
 <style>
 :root {
   --red:#b10021;
@@ -242,16 +242,19 @@ button:hover {
   .card { box-shadow:none; border:1px solid #ddd; }
   .features { grid-template-columns:1fr 1fr; }
 }
+
+.hidden{display:none!important;}
+.version-note{font-size:.86rem;color:var(--muted);margin-top:6px;}
+.badge{display:inline-block;background:#f1f1f1;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:.82rem;color:#555;margin-left:6px;}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap hero">
-    <div class="wappen"><img src="frankfurt-wappen.webp" alt="Frankfurter Wappen" loading="eager">
-</div>
+    <div class="wappen"><img src="frankfurt-wappen.webp" alt="Frankfurter Wappen" loading="eager"></div>
     <div>
-      <h1>Frankfurter Mietspiegel 2026</h1>
-      <div class="subtitle">Rechner zur Ermittlung der ortsüblichen Vergleichsmiete</div>
+      <h1 id="mainTitle">Frankfurter Mietspiegel 2026</h1>
+      <div class="subtitle" id="subtitle">Rechner zur Ermittlung der ortsüblichen Vergleichsmiete</div>
     </div>
   </div>
 </header>
@@ -261,6 +264,14 @@ button:hover {
     <div class="card">
       <div class="formgrid">
         <div>
+          <label for="version"><b>Mietspiegel-Version</b></label>
+          <select id="version">
+            <option value="2026" selected>2026</option>
+            <option value="2024">2024</option>
+          </select>
+          <div class="version-note" id="versionNote">2026: Straßenregister / Lage 1–10.</div>
+        </div>
+        <div>
           <label for="wohnung"><b>Wohnung</b></label>
           <input id="wohnung" type="text">
         </div>
@@ -268,7 +279,16 @@ button:hover {
           <label for="area"><b>Wohnfläche</b> in m²</label>
           <input id="area" type="text" inputmode="decimal" value="100,52" min="15" max="234" step="0.01">
         </div>
-        <div>
+        <div id="baualter2024Block" class="hidden">
+          <label for="baualter2024"><b>Baualtersklasse</b></label>
+          <select id="baualter2024">
+            <option value="bis1977">bis 1977</option>
+            <option value="1978_1994">1978 bis 1994</option>
+            <option value="1995_2009">1995 bis 2009</option>
+            <option value="2010_2021">2010 bis 2021</option>
+          </select>
+        </div>
+        <div id="addrBlock">
           <label for="addrSearch"><b>Adresse suchen</b> <span class="small">(optional)</span></label>
           <div class="addr-wrap">
             <input id="addrSearch" type="text" autocomplete="off" placeholder="z. B. Adalbertstraße 12a">
@@ -276,16 +296,30 @@ button:hover {
           </div>
           <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
         </div>
-        <div>
+        <div id="lage2026Block">
           <label for="lage"><b>Lagekategorie</b></label>
           <select id="lage"></select>
+        </div>
+        <div id="wohnlage2024Block" class="hidden">
+          <label for="wohnlage2024"><b>Wohnlage 2024</b></label>
+          <select id="wohnlage2024">
+            <option value="1.54">Sehr gute Wohnlage (+1,54 €/m²)</option>
+            <option value="0.31">Gehobene Wohnlage (+0,31 €/m²)</option>
+            <option value="0" selected>Mittlere Wohnlage (0,00 €/m²)</option>
+            <option value="-0.45">Einfache / sehr einfache Wohnlage (-0,45 €/m²)</option>
+          </select>
+          <label class="feat" style="grid-template-columns:22px 1fr 70px;margin-top:8px;border-bottom:0">
+            <input type="checkbox" id="zentraleLage2024">
+            <span>Zentrale Lage</span>
+            <span class="price">+1,13</span>
+          </label>
         </div>
       </div>
     </div>
 
     <div class="card">
       <div class="features-header">
-        <span></span><span>Merkmal</span><span class="price">€/m²</span>
+        <span></span><span>Merkmal <span id="featureYear" class="badge">2026</span></span><span class="price">€/m²</span>
       </div>
       <div id="features" class="features"></div>
     </div>
@@ -294,283 +328,274 @@ button:hover {
   <aside class="card result">
     <h2>Ergebnis</h2>
     <div id="out"></div>
-    <p class="small">
-      
-    </p>
+    <p class="small" id="resultHint"></p>
     <button onclick="createPDF()">Drucken / PDF</button>
   </aside>
 </main>
 
 <script>
-const lage = {
-  1:0, 2:.59, 3:.77, 4:1.06, 5:1.49,
-  6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32
-};
+const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
-const feats = [
-  ["Neubau 2018–2025",1.25],
-  ["Gedämmtes Dach oder Bj. ≥ 1978",0.24],
-  ["Gedämmte Außenwand",0.47],
-  ["Wärmeschutzverglasung",0.38],
-  ["Freistehendes Einfamilienhaus",2.22],
-  ["Garten ≥ 30 m²",0.85],
-  ["Deckenhöhe ≥ 2,61 m",0.21],
-  ["Große Wohn-/Schlafräume",0.31],
-  ["Gefangene Räume",-0.64],
-  ["Grundrissänderung",0.95],
-  ["Fehlender Fußboden",-0.60],
-  ["Hochwertiger Fußboden",0.64],
-  ["Hochwertiger Altbau",1.30],
-  ["Auf-Putz-Leitungen",-0.27],
-  ["Steigleitungen erneuert",0.37],
-  ["Einfacher Heizungsstandard",-1.09],
-  ["Nicht beheizbare Räume",-0.61],
-  ["Bodentiefe oder raumhoe Fenster",0.29],
-  ["Elektrische betriebene Rollläden",0.61],
-  ["Videogegensprechanlage",0.82],
-  ["Aufzug",0.65],
-  ["Küche",0.43],
-  ["Neue Einbauküche",0.85],
-  ["Mehrere Badezimmer",0.61],
-  ["Mehrere Toiletten",0.24],
-  ["Wandhängendes WC",0.19],
-  ["Bad-Heizung",0.45],
-  ["Hochwertige Dusche",0.95],
-  ["Tageslichtbad",0.19],
-  ["Balkon/Freisitz",0.39],
-  ["Tiefer Freisitz",0.38],
-  ["Mehrere Freisitze",0.30]
+const feats2026 = [
+  ["Neubau 2018–2025",1.25], ["Gedämmtes Dach oder Bj. ≥ 1978",0.24], ["Gedämmte Außenwand",0.47],
+  ["Wärmeschutzverglasung",0.38], ["Freistehendes Einfamilienhaus",2.22], ["Garten ≥ 30 m²",0.85],
+  ["Deckenhöhe ≥ 2,61 m",0.21], ["Große Wohn-/Schlafräume",0.31], ["Gefangene Räume",-0.64],
+  ["Grundrissänderung",0.95], ["Fehlender Fußboden",-0.60], ["Hochwertiger Fußboden",0.64],
+  ["Hochwertiger Altbau",1.30], ["Auf-Putz-Leitungen",-0.27], ["Steigleitungen erneuert",0.37],
+  ["Einfacher Heizungsstandard",-1.09], ["Nicht beheizbare Räume",-0.61], ["Bodentiefe oder raumhohe Fenster",0.29],
+  ["Elektrisch betriebene Rollläden",0.61], ["Videogegensprechanlage",0.82], ["Aufzug",0.65],
+  ["Küche",0.43], ["Neue Einbauküche",0.85], ["Mehrere Badezimmer",0.61], ["Mehrere Toiletten",0.24],
+  ["Wandhängendes WC",0.19], ["Bad-Heizung",0.45], ["Hochwertige Dusche",0.95], ["Tageslichtbad",0.19],
+  ["Balkon/Freisitz",0.39], ["Tiefer Freisitz",0.38], ["Mehrere Freisitze",0.30]
 ];
 
+const feats2024 = [
+  ["Einfacher Heizungsstandard",-1.59], ["Einfacher Ausstattungsstandard",-1.10], ["Auf-Putz-Leitungen",-0.42],
+  ["Hohe Decken",2.63], ["Videogegensprechanlage",1.27], ["Standard-Einbauküche",1.07],
+  ["Neuere Standard-Einbauküche",0.77], ["Modernisiertes Standardbad",1.08], ["Umfangreiches Bad",1.12],
+  ["Hochwertige Bad-Elemente",0.53], ["Mehrere Badezimmer",0.54], ["Ein-Scheiben-Verglasung",-0.88],
+  ["2-Scheiben-Wärmeschutz-Verglasung",0.19], ["3-Scheiben-Wärmeschutz-Verglasung",1.23], ["Elektrische Rollläden",1.80],
+  ["Kleiner Freisitz",0.32], ["Großer Balkon oder große Loggia",0.55], ["Fehlender oder abschlagsfähiger Fußboden",-1.22],
+  ["Mehrschichtparkett",0.56], ["Besonders hochwertiger Fußboden",1.05], ["Hochwertiger Altbau",2.03]
+];
+
+const table2024 = {
+  areas:[15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125,130,135,140,145,150,155,160],
+  bis1977:[20.35,17.04,15.05,13.72,12.77,12.07,11.51,11.08,10.71,10.40,10.16,9.94,9.75,9.58,9.43,9.31,9.19,9.09,8.99,8.91,8.83,8.75,8.68,8.63,8.57,8.52,8.47,8.42,8.38,8.34],
+  "1978_1994":[20.95,17.64,15.65,14.32,13.37,12.66,12.10,11.67,11.30,11.01,10.75,10.53,10.34,10.17,10.02,9.90,9.78,9.68,9.58,9.50,9.42,9.34,9.28,9.22,9.16,9.11,9.06,9.02,8.97,8.93],
+  "1995_2009":[21.28,17.96,15.97,14.64,13.69,12.99,12.43,11.99,11.63,11.33,11.08,10.85,10.66,10.49,10.35,10.23,10.10,10.00,9.90,9.82,9.75,9.67,9.60,9.54,9.49,9.43,9.39,9.34,9.30,9.25],
+  "2010_2021":[21.80,18.48,16.50,15.17,14.22,13.51,12.95,12.52,12.15,11.86,11.60,11.38,11.19,11.02,10.87,10.75,10.63,10.53,10.43,10.35,10.27,10.19,10.13,10.07,10.01,9.96,9.91,9.87,9.82,9.78]
+};
+
 const area = document.getElementById("area");
+const versionSel = document.getElementById("version");
 const lageSel = document.getElementById("lage");
 const box = document.getElementById("features");
 const addrSearch = document.getElementById("addrSearch");
 const addrSuggest = document.getElementById("addrSuggest");
 const addrStatus = document.getElementById("addrStatus");
+const baualter2024 = document.getElementById("baualter2024");
+const wohnlage2024 = document.getElementById("wohnlage2024");
+const zentraleLage2024 = document.getElementById("zentraleLage2024");
 
+let feats = feats2026;
 let wohnlagen = {};
 let streetNames = [];
 let suggestionItems = [];
 let activeSuggestion = -1;
+let suppressSave = false;
+let activeVersion = "2026";
 
 for (let i=1; i<=10; i++) {
   const o = document.createElement("option");
-  o.value = lage[i];
+  o.value = lage2026[i];
   o.textContent = "Lage " + i;
   if (i === 9) o.selected = true;
   lageSel.add(o);
 }
 
-const mutuallyExclusiveFeatures = [
-  ["Hochwertiger Altbau", "Hochwertiger Fußboden"]
-];
+function parseDE(v) { return parseFloat(String(v).replace(",", ".")) || 0; }
+function round2(x) { return Math.round((x + Number.EPSILON) * 100) / 100; }
+function euro(x) { return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}) + " €"; }
+function num(x) { return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function currentVersion() { return activeVersion; }
 
-function featureIndex(name) {
-  return feats.findIndex(f => f[0] === name);
+// 2026 bleibt unverändert.
+function baseRent2026(a) { return 6.5398988 + 173.8715515 / a; }
+
+// 2024: stückweise hyperbolische Funktionen y=A+B/x je Baualtersklasse und Größenintervall.
+// Dadurch werden die amtlichen Tabellenpunkte auf Cent genau getroffen.
+function hyperbolicBetween(x, x1, y1, x2, y2) {
+  const B = (y1 - y2) / (1/x1 - 1/x2);
+  const A = y1 - B / x1;
+  return A + B / x;
 }
-
-function featureCheckbox(name) {
-  const idx = featureIndex(name);
-  return idx >= 0 ? document.getElementById("f" + idx) : null;
-}
-
-function updateMutualExclusions() {
-  mutuallyExclusiveFeatures.forEach(([a,b]) => {
-    const cbA = featureCheckbox(a);
-    const cbB = featureCheckbox(b);
-    if (!cbA || !cbB) return;
-    const labelA = cbA.closest(".feat");
-    const labelB = cbB.closest(".feat");
-
-    if (cbA.checked) {
-      cbB.checked = false;
-      cbB.disabled = true;
-      labelB.dataset.note = "Nicht kombinierbar mit Hochwertigem Altbau";
-    } else {
-      cbB.disabled = false;
-      delete labelB.dataset.note;
-    }
-
-    if (cbB.checked) {
-      cbA.checked = false;
-      cbA.disabled = true;
-      labelA.dataset.note = "Nicht kombinierbar mit hochwertigem Fußboden";
-    } else {
-      cbA.disabled = false;
-      delete labelA.dataset.note;
-    }
-  });
-}
-
-feats.forEach((f,i) => {
-  const label = document.createElement("label");
-  label.className = "feat";
-  label.innerHTML =
-    `<input type="checkbox" id="f${i}">
-     <span>${f[0]}</span>
-     <span class="price">${f[1].toFixed(2).replace(".",",")}</span>`;
-  box.appendChild(label);
-
-  label.querySelector("input").addEventListener("change", () => {
-    updateMutualExclusions();
-  });
-});
-
-function parseDE(v) {
-  return parseFloat(String(v).replace(",", ".")) || 0;
-}
-
-function baseRent(a) {
-  return 6.5398988 + 173.8715515 / a;
-}
-
-function round2(x) {
-  return Math.round((x + Number.EPSILON) * 100) / 100;
-}
-
-function euro(x) {
-  return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}) + " €";
-}
-
-function num(x) {
-  return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2});
-}
-
-
-function normText(v) {
-  return String(v || "")
-    .toLocaleLowerCase("de-DE")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function normNr(v) {
-  return String(v || "")
-    .toLocaleLowerCase("de-DE")
-    .replace(/\s+/g, "")
-    .replace(/\./g, "")
-    .trim();
-}
-
-function splitAddressQuery(q) {
-  const s = String(q || "").trim().replace(/\s+/g, " ");
-  const m = s.match(/^(.*?)(?:\s+)(\d+\s*[a-zA-Z]?)$/);
-  if (!m) return {street:s, nr:""};
-  return {street:m[1].trim(), nr:normNr(m[2])};
-}
-
-function setLageKategorie(kat, sourceText) {
-  const idx = Math.max(1, Math.min(10, Number(kat))) - 1;
-  lageSel.selectedIndex = idx;
-  if (sourceText) addrStatus.innerHTML = sourceText;
-  calc();
-}
-
-function hideSuggestions() {
-  addrSuggest.style.display = "none";
-  addrSuggest.innerHTML = "";
-  suggestionItems = [];
-  activeSuggestion = -1;
-}
-
-function renderSuggestions(items) {
-  suggestionItems = items;
-  activeSuggestion = -1;
-  addrSuggest.innerHTML = "";
-  if (!items.length) {
-    hideSuggestions();
-    return;
+function baseRent2024(a, cls) {
+  const xs = table2024.areas;
+  const ys = table2024[cls] || table2024.bis1977;
+  if (a < xs[0] || a > xs[xs.length-1]) return NaN;
+  for (let i=0; i<xs.length; i++) {
+    if (Math.abs(a - xs[i]) < 1e-9) return ys[i];
   }
+  for (let i=0; i<xs.length-1; i++) {
+    if (a > xs[i] && a < xs[i+1]) return hyperbolicBetween(a, xs[i], ys[i], xs[i+1], ys[i+1]);
+  }
+  return NaN;
+}
+
+function featureIndex(name) { return feats.findIndex(f => f[0] === name); }
+function featureCheckbox(name) { const idx = featureIndex(name); return idx >= 0 ? document.getElementById("f" + idx) : null; }
+function getFeaturePairs() { return currentVersion()==="2024" ? [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]] : [["Hochwertiger Altbau", "Hochwertiger Fußboden"]]; }
+function updateMutualExclusions() {
+  getFeaturePairs().forEach(([a,b]) => {
+    const cbA = featureCheckbox(a), cbB = featureCheckbox(b);
+    if (!cbA || !cbB) return;
+    const labelA = cbA.closest(".feat"), labelB = cbB.closest(".feat");
+    if (cbA.checked) { cbB.checked = false; cbB.disabled = true; labelB.dataset.note = "Nicht kombinierbar mit " + a; }
+    else { cbB.disabled = false; delete labelB.dataset.note; }
+    if (cbB.checked) { cbA.checked = false; cbA.disabled = true; labelA.dataset.note = "Nicht kombinierbar mit " + b; }
+    else { cbA.disabled = false; delete labelA.dataset.note; }
+  });
+  if (currentVersion()==="2024") {
+    const standard = featureCheckbox("Standard-Einbauküche");
+    const newer = featureCheckbox("Neuere Standard-Einbauküche");
+    if (standard && newer) {
+      const lbl = newer.closest(".feat");
+      if (!standard.checked) { newer.checked = false; newer.disabled = true; lbl.dataset.note = "Nur anwendbar mit Standard-Einbauküche"; }
+      else { newer.disabled = false; delete lbl.dataset.note; }
+    }
+  }
+}
+
+function renderFeatures(restoreChecks) {
+  box.innerHTML = "";
+  feats.forEach((f,i) => {
+    const label = document.createElement("label");
+    label.className = "feat";
+    label.innerHTML = `<input type="checkbox" id="f${i}"><span>${f[0]}</span><span class="price">${f[1].toFixed(2).replace(".",",")}</span>`;
+    box.appendChild(label);
+    const cb = label.querySelector("input");
+    if (restoreChecks) {
+      if (Array.isArray(restoreChecks)) cb.checked = !!restoreChecks[i];
+      else cb.checked = !!restoreChecks[f[0]];
+    }
+    cb.addEventListener("change", () => { updateMutualExclusions(); calc(); });
+  });
+  updateMutualExclusions();
+}
+
+function normText(v) { return String(v || "").toLocaleLowerCase("de-DE").replace(/\s+/g, " ").trim(); }
+function normNr(v) { return String(v || "").toLocaleLowerCase("de-DE").replace(/\s+/g, "").replace(/\./g, "").trim(); }
+function splitAddressQuery(q) { const s = String(q || "").trim().replace(/\s+/g, " "); const m = s.match(/^(.*?)(?:\s+)(\d+\s*[a-zA-Z]?)$/); return !m ? {street:s, nr:""} : {street:m[1].trim(), nr:normNr(m[2])}; }
+function setLageKategorie(kat, sourceText) { const idx = Math.max(1, Math.min(10, Number(kat))) - 1; lageSel.selectedIndex = idx; if (sourceText) addrStatus.innerHTML = sourceText; calc(); }
+function hideSuggestions() { addrSuggest.style.display = "none"; addrSuggest.innerHTML = ""; suggestionItems = []; activeSuggestion = -1; }
+function renderSuggestions(items) {
+  suggestionItems = items; activeSuggestion = -1; addrSuggest.innerHTML = "";
+  if (!items.length) return hideSuggestions();
   items.forEach((it, idx) => {
-    const div = document.createElement("div");
-    div.className = "suggestion";
+    const div = document.createElement("div"); div.className = "suggestion";
     div.innerHTML = `${it.street} ${it.nr} <b>→ Lage ${it.lage}</b>`;
-    div.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      chooseSuggestion(idx);
-    });
+    div.addEventListener("mousedown", e => { e.preventDefault(); chooseSuggestion(idx); });
     addrSuggest.appendChild(div);
   });
   addrSuggest.style.display = "block";
 }
-
-function chooseSuggestion(idx) {
-  const it = suggestionItems[idx];
-  if (!it) return;
-  addrSearch.value = `${it.street} ${it.nr}`;
-  hideSuggestions();
-  setLageKategorie(it.lage, `Gewählte Adresse: <b>${it.street} ${it.nr}</b> → <b>Lage ${it.lage}</b>. Manuelle Änderung bleibt möglich.`);
-  save();
-}
-
+function chooseSuggestion(idx) { const it = suggestionItems[idx]; if (!it) return; addrSearch.value = `${it.street} ${it.nr}`; hideSuggestions(); setLageKategorie(it.lage, `Gewählte Adresse: <b>${it.street} ${it.nr}</b> → <b>Lage ${it.lage}</b>. Manuelle Änderung bleibt möglich.`); save(); }
 function updateAddressSuggestions() {
-  if (!streetNames.length) {
-    addrStatus.textContent = "Adressdaten werden geladen …";
-    return;
-  }
+  if (currentVersion() !== "2026") return hideSuggestions();
+  if (!streetNames.length) { addrStatus.textContent = "Adressdaten werden geladen …"; return; }
   const raw = addrSearch.value.trim();
-  if (raw.length < 2) {
-    hideSuggestions();
-    addrStatus.textContent = "Adresse wählen oder Lage manuell einstellen.";
-    return;
-  }
-
-  const parsed = splitAddressQuery(raw);
-  const qStreet = normText(parsed.street || raw);
-  const qNr = normNr(parsed.nr);
-  const candidates = [];
-
-  const scoredStreets = streetNames
-    .map(street => {
-      const n = normText(street);
-      let score = -1;
-      if (n === qStreet) score = 0;
-      else if (n.startsWith(qStreet)) score = 1;
-      else if (n.includes(qStreet)) score = 2;
-      return {street, score};
-    })
-    .filter(x => x.score >= 0)
-    .sort((a,b) => a.score - b.score || a.street.localeCompare(b.street, "de-DE"))
-    .slice(0, 18);
-
+  if (raw.length < 2) { hideSuggestions(); addrStatus.textContent = "Adresse wählen oder Lage manuell einstellen."; return; }
+  const parsed = splitAddressQuery(raw), qStreet = normText(parsed.street || raw), qNr = normNr(parsed.nr), candidates = [];
+  const scoredStreets = streetNames.map(street => { const n = normText(street); let score = -1; if (n === qStreet) score = 0; else if (n.startsWith(qStreet)) score = 1; else if (n.includes(qStreet)) score = 2; return {street, score}; })
+    .filter(x => x.score >= 0).sort((a,b) => a.score - b.score || a.street.localeCompare(b.street, "de-DE")).slice(0, 18);
   for (const item of scoredStreets) {
     const nums = Object.keys(wohnlagen[item.street] || {});
-    const matchedNums = qNr
-      ? nums.filter(n => normNr(n).startsWith(qNr)).slice(0, 8)
-      : nums.slice(0, 4);
-    for (const nr of matchedNums) {
-      candidates.push({street:item.street, nr, lage:wohnlagen[item.street][nr]});
-      if (candidates.length >= 24) break;
-    }
+    const matchedNums = qNr ? nums.filter(n => normNr(n).startsWith(qNr)).slice(0, 8) : nums.slice(0, 4);
+    for (const nr of matchedNums) { candidates.push({street:item.street, nr, lage:wohnlagen[item.street][nr]}); if (candidates.length >= 24) break; }
     if (candidates.length >= 24) break;
   }
-
-  if (!candidates.length) {
-    hideSuggestions();
-    addrStatus.innerHTML = '<span class="error">Keine Adresse gefunden. Lage kann weiterhin manuell gewählt werden.</span>';
-    return;
-  }
-
-  addrStatus.textContent = "Vorschlag auswählen oder Lage manuell einstellen.";
-  renderSuggestions(candidates);
+  if (!candidates.length) { hideSuggestions(); addrStatus.innerHTML = '<span class="error">Keine Adresse gefunden. Lage kann weiterhin manuell gewählt werden.</span>'; return; }
+  addrStatus.textContent = "Vorschlag auswählen oder Lage manuell einstellen."; renderSuggestions(candidates);
+}
+function loadWohnlagen() {
+  fetch("wohnlagen_compact.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); if(currentVersion()==="2026") addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
 }
 
-function loadWohnlagen() {
-  fetch("wohnlagen_compact.json", {cache:"force-cache"})
-    .then(r => {
-      if (!r.ok) throw new Error("Adressdaten konnten nicht geladen werden");
-      return r.json();
-    })
-    .then(data => {
-      wohnlagen = data || {};
-      streetNames = Object.keys(wohnlagen);
-      addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen.";
-      updateAddressSuggestions();
-    })
-    .catch(() => {
-      addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>';
-    });
+function collectChecks() {
+  const checks = {};
+  feats.forEach((f,i) => { checks[f[0]] = !!document.getElementById("f"+i)?.checked; });
+  return checks;
+}
+function storageKey() { return "ffm_mietspiegel_2024_2026_final"; }
+function save() {
+  if (suppressSave) return;
+  const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
+  state.version = currentVersion(); state.area = area.value; state.wohnung = document.getElementById("wohnung").value;
+  if (currentVersion()==="2026") state.v2026 = {lage: lageSel.selectedIndex, address: addrSearch.value, checks: collectChecks()};
+  else state.v2024 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked, checks: collectChecks()};
+  localStorage.setItem(storageKey(), JSON.stringify(state));
+}
+function applyVersion(ver, restoredChecks) {
+  activeVersion = ver;
+  versionSel.value = ver;
+  const is2024 = ver === "2024";
+  document.getElementById("mainTitle").textContent = "Frankfurter Mietspiegel " + ver;
+  document.getElementById("featureYear").textContent = ver;
+  document.getElementById("versionNote").textContent = is2024 ? "2024: Baualtersklasse, Wohnlage und zentrale Lage." : "2026: Straßenregister / Lage 1–10.";
+  document.getElementById("addrBlock").classList.toggle("hidden", is2024);
+  document.getElementById("lage2026Block").classList.toggle("hidden", is2024);
+  document.getElementById("baualter2024Block").classList.toggle("hidden", !is2024);
+  document.getElementById("wohnlage2024Block").classList.toggle("hidden", !is2024);
+  feats = is2024 ? feats2024 : feats2026;
+  renderFeatures(restoredChecks || []);
+  hideSuggestions();
+  if (!is2024) updateAddressSuggestions();
+}
+function load() {
+  suppressSave = true;
+  try {
+    const s = JSON.parse(localStorage.getItem(storageKey()) || "{}");
+    if (s.area) area.value = s.area;
+    if (s.wohnung) document.getElementById("wohnung").value = s.wohnung;
+    const ver = s.version || "2026";
+    if (ver === "2024" && s.v2024) {
+      baualter2024.value = s.v2024.baualter || "bis1977"; wohnlage2024.value = String(s.v2024.wohnlage ?? "0"); zentraleLage2024.checked = !!s.v2024.zentral;
+      applyVersion("2024", s.v2024.checks || []);
+    } else {
+      if (s.v2026) { if (s.v2026.address) addrSearch.value = s.v2026.address; if (Number.isInteger(s.v2026.lage)) lageSel.selectedIndex = s.v2026.lage; }
+      applyVersion("2026", (s.v2026 && s.v2026.checks) || []);
+    }
+  } catch(e) { applyVersion("2026", []); }
+  suppressSave = false;
+}
+
+function calculation() {
+  updateMutualExclusions();
+  const a = parseDE(area.value);
+  if (!a || a < 15) return {error:"Wohnfläche mindestens 15 m²"};
+  const ver = currentVersion();
+  let basisExact, basisShown, lageLabel, lagenzuschlag, spanPct, meta = [];
+  if (ver === "2024") {
+    if (a > 160) return {error:"Der Mietspiegel 2024 enthält Tabellenwerte nur bis 160 m²."};
+    basisExact = baseRent2024(a, baualter2024.value);
+    basisShown = round2(basisExact);
+    const zentral = zentraleLage2024.checked ? 1.13 : 0;
+    lagenzuschlag = round2(parseDE(wohnlage2024.value) + zentral);
+    const wlText = wohnlage2024.options[wohnlage2024.selectedIndex]?.textContent.replace(/\s*\(.*/,"") || "";
+    lageLabel = wlText + (zentraleLage2024.checked ? " + Zentrale Lage" : "");
+    spanPct = 0.19;
+    meta.push(["Baualtersklasse", baualter2024.options[baualter2024.selectedIndex].textContent]);
+    meta.push(["Wohnlage", lageLabel]);
+  } else {
+    basisExact = baseRent2026(a);
+    basisShown = round2(basisExact);
+    lagenzuschlag = round2(parseDE(lageSel.value));
+    lageLabel = lageSel.options[lageSel.selectedIndex]?.textContent || "";
+    spanPct = 0.16;
+    meta.push(["Lagekategorie", lageLabel]);
+    meta.push(["Adresse", addrSearch.value.trim() || "nicht angegeben"]);
+  }
+  let merkmaleSum = 0; const active = [];
+  feats.forEach((f,i) => { if (document.getElementById("f"+i)?.checked) { merkmaleSum += f[1]; active.push({name:f[0], value:f[1]}); } });
+  merkmaleSum = round2(merkmaleSum);
+  const pm2Shown = round2(basisExact + lagenzuschlag + merkmaleSum);
+  const orts = round2(pm2Shown * a);
+  return {ver,a,basisExact,basisShown,lager:lagenzuschlag,lageLabel,merkmaleSum,pm2Shown,orts,spanLow:round2(orts*(1-spanPct)),spanHigh:round2(orts*(1+spanPct)),mpb:round2(orts*1.10),active,meta,spanPct};
+}
+function calc() {
+  if (!area.value.trim()) { document.getElementById("out").innerHTML = ""; return; }
+  const c = calculation();
+  if (c.error) { document.getElementById("out").innerHTML = `<div class="result-box"><b>${c.error}</b></div>`; save(); return; }
+  document.getElementById("out").innerHTML = `
+    <div class="row"><span>Basis-Netto-Miete</span><b>${num(c.basisShown)} €/m²</b></div>
+    <div class="row"><span>${c.ver==="2024" ? "Wohnlagenzuschlag" : "Lagenzuschlag"}</span><b>${num(c.lager)} €/m²</b></div>
+    <div class="row"><span>Zu-/Abschläge</span><b>${num(c.merkmaleSum)} €/m²</b></div>
+    <div class="result-title">ORTSÜBLICHE VERGLEICHSMIETE</div>
+    <div class="result-values"><div class="big">${num(c.pm2Shown)} €/m²</div><div class="big">${euro(c.orts)}</div></div>
+    <div class="result-box"><div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div><div class="label">Zulässige Höchstmiete</div><div class="big">${euro(c.mpb)}</div><div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div><div class="big">${euro(c.spanHigh)}</div></div>`;
+  document.getElementById("resultHint").textContent = c.ver==="2024" ? "2024: Basiswert über stückweise hyperbolische Funktionen aus Tabelle 1; Tabellenpunkte centgenau." : "";
+  save();
 }
 
 addrSearch.addEventListener("input", updateAddressSuggestions);
@@ -578,320 +603,74 @@ addrSearch.addEventListener("focus", updateAddressSuggestions);
 addrSearch.addEventListener("keydown", (e) => {
   if (addrSuggest.style.display !== "block") return;
   const children = Array.from(addrSuggest.children);
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    activeSuggestion = Math.min(children.length - 1, activeSuggestion + 1);
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    activeSuggestion = Math.max(0, activeSuggestion - 1);
-  } else if (e.key === "Enter") {
-    if (activeSuggestion >= 0) {
-      e.preventDefault();
-      chooseSuggestion(activeSuggestion);
-    }
-    return;
-  } else if (e.key === "Escape") {
-    hideSuggestions();
-    return;
-  } else {
-    return;
-  }
+  if (e.key === "ArrowDown") { e.preventDefault(); activeSuggestion = Math.min(children.length - 1, activeSuggestion + 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); activeSuggestion = Math.max(0, activeSuggestion - 1); }
+  else if (e.key === "Enter") { if (activeSuggestion >= 0) { e.preventDefault(); chooseSuggestion(activeSuggestion); } return; }
+  else if (e.key === "Escape") { hideSuggestions(); return; } else return;
   children.forEach((el,i) => el.classList.toggle("active", i === activeSuggestion));
 });
-document.addEventListener("click", (e) => {
-  if (!e.target.closest(".addr-wrap")) hideSuggestions();
-});
-lageSel.addEventListener("change", () => {
-  if (addrSearch.value.trim()) {
-    addrStatus.textContent = "Lage wurde manuell geändert.";
-  }
-});
-
-function save() {
-  localStorage.setItem("ffm_mietspiegel_2026_final", JSON.stringify({
-    area: area.value,
-    lage: lageSel.selectedIndex,
-    address: addrSearch.value,
-    checks: feats.map((_,i) => document.getElementById("f"+i).checked)
-  }));
-}
-
-function load() {
-  try {
-    const s = JSON.parse(localStorage.getItem("ffm_mietspiegel_2026_final") || "{}");
-    if (s.area) area.value = s.area;
-    if (s.address) addrSearch.value = s.address;
-    if (Number.isInteger(s.lage)) lageSel.selectedIndex = s.lage;
-    (s.checks || []).forEach((v,i) => {
-      const el = document.getElementById("f"+i);
-      if (el) el.checked = v;
-    });
-  } catch(e) {}
-}
-
-function calc() {
-  updateMutualExclusions();
-  if (!area.value.trim()) { document.getElementById("out").innerHTML = ""; return; }
-  const areaNum = parseDE(area.value);
-  if (!areaNum || areaNum < 15) {
-    document.getElementById("out").innerHTML = '<div class="result-box"><b>Wohnfläche mindestens 15 m²</b></div>';
-    save();
-    return;
-  }
-
-  const a = areaNum;
-  const basisExact = baseRent(a);
-  const basisShown = round2(basisExact);
-
-  const lagenzuschlag = round2(parseDE(lageSel.value));
-  let merkmaleSum = 0;
-  const active = [];
-
-  feats.forEach((f,i) => {
-    if (document.getElementById("f"+i).checked) {
-      merkmaleSum += f[1];
-      active.push(f[0]);
-    }
-  });
-
-  merkmaleSum = round2(merkmaleSum);
-
-  // Important: €/m² is rounded BEFORE multiplying by Wohnfläche.
-  const pm2Shown = round2(basisExact + lagenzuschlag + merkmaleSum);
-  const orts = round2(pm2Shown * a);
-  const spanLow = round2(orts * 0.84);
-  const spanHigh = round2(orts * 1.16);
-  const mpb = round2(orts * 1.10);
-
-  document.getElementById("out").innerHTML = `
-    <div class="row"><span>Basis-Netto-Miete</span><b>${num(basisShown)} €/m²</b></div>
-    <div class="row"><span>Lagenzuschlag</span><b>${num(lagenzuschlag)} €/m²</b></div>
-    <div class="row"><span>Zu-/Abschläge</span><b>${num(merkmaleSum)} €/m²</b></div>
-
-    <div class="result-title">ORTSÜBLICHE VERGLEICHSMIETE</div>
-    <div class="result-values">
-      <div class="big">${num(pm2Shown)} €/m²</div>
-      <div class="big">${euro(orts)}</div>
-    </div>
-
-    <div class="result-box">
-      <div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div>
-      <div class="label">Zulässige Höchstmiete</div>
-      <div class="big">${euro(mpb)}</div>
-      <div class="label">Obere Mietspiegelspanne</div>
-      <div class="big">${euro(spanHigh)}</div>
-    </div>
-
-    
-  `;
-
+document.addEventListener("click", e => { if (!e.target.closest(".addr-wrap")) hideSuggestions(); });
+lageSel.addEventListener("change", () => { if (addrSearch.value.trim()) addrStatus.textContent = "Lage wurde manuell geändert."; });
+versionSel.addEventListener("change", () => {
+  // Beim change-Event hat das Select bereits den neuen Wert.
+  // activeVersion enthält noch die bisher aktive Version.
+  // Deshalb speichert save() zuerst korrekt den Stand der alten Version.
+  const nextVersion = versionSel.value;
   save();
-}
 
-load();
-updateMutualExclusions();
-loadWohnlagen();
+  const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
+  suppressSave = true;
+
+  if (nextVersion === "2024") {
+    if (state.v2024) {
+      baualter2024.value = state.v2024.baualter || "bis1977";
+      wohnlage2024.value = String(state.v2024.wohnlage ?? "0");
+      zentraleLage2024.checked = !!state.v2024.zentral;
+    }
+    applyVersion("2024", (state.v2024 && state.v2024.checks) || {});
+  } else {
+    if (state.v2026) {
+      addrSearch.value = state.v2026.address || "";
+      if (Number.isInteger(state.v2026.lage)) lageSel.selectedIndex = state.v2026.lage;
+    }
+    applyVersion("2026", (state.v2026 && state.v2026.checks) || {});
+  }
+
+  suppressSave = false;
+  calc();
+});
 document.addEventListener("input", calc);
 document.addEventListener("change", calc);
-calc();
+load(); loadWohnlagen(); calc();
 </script>
-
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script>
 function createPDF(){
   const { jsPDF } = window.jspdf;
+  const c = calculation();
+  if (c.error) { alert(c.error); return; }
   const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
-
-  const a = parseDE(area.value);
-  if (!a || a < 15) {
-    alert("Bitte zuerst eine gültige Wohnfläche ab 15 m² eingeben.");
-    return;
-  }
-
-  updateMutualExclusions();
-
-  const basisExact = baseRent(a);
-  const basisShown = round2(basisExact);
-  const lagenzuschlag = round2(parseDE(lageSel.value));
-  let merkmaleSum = 0;
-  const active = [];
-
-  feats.forEach((f,i) => {
-    const el = document.getElementById("f"+i);
-    if (el && el.checked) {
-      merkmaleSum += f[1];
-      active.push({name:f[0], value:f[1]});
-    }
-  });
-
-  merkmaleSum = round2(merkmaleSum);
-  const pm2Shown = round2(basisExact + lagenzuschlag + merkmaleSum);
-  const orts = round2(pm2Shown * a);
-  const spanLow = round2(orts * 0.84);
-  const spanHigh = round2(orts * 1.16);
-  const mpb = round2(orts * 1.10);
-
-  const pageW = 210;
-  const pageH = 297;
-  const margin = 12;
-  const red = [177,0,33];
-  const dark = [35,35,35];
-  const grey = [95,95,95];
-
-  function euroPDF(x){ return euro(x); }
-  function numPDF(x){ return num(x); }
-
-  function text(txt,x,y,opt){
-    pdf.text(String(txt), x, y, opt || {});
-  }
-
-  function line(y){
-    pdf.setDrawColor(220,220,220);
-    pdf.line(margin, y, pageW-margin, y);
-  }
-
-  function row(label, value, y){
-    pdf.setFont("helvetica","normal");
-    pdf.setTextColor(...dark);
-    pdf.setFontSize(9);
-    text(label, margin, y);
-    pdf.setFont("helvetica","bold");
-    text(value, pageW-margin, y, {align:"right"});
-    line(y+2);
-  }
-
-  // Header
-  pdf.setFillColor(...red);
-  pdf.rect(0,0,pageW,24,"F");
-  pdf.setTextColor(255,255,255);
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(17);
-  text("Frankfurter Mietspiegel 2026", margin, 10);
-  pdf.setFont("helvetica","normal");
-  pdf.setFontSize(9);
-  text("Berechnung der ortsüblichen Vergleichsmiete", margin, 16);
-
-  // Meta
-  let y = 33;
-  pdf.setTextColor(...dark);
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(12);
-  text("Berechnungsgrundlagen", margin, y);
-  y += 7;
-
-  const selectedLage = lageSel.options[lageSel.selectedIndex] ? lageSel.options[lageSel.selectedIndex].textContent : "";
+  const pageW = 210, margin = 12, red = [177,0,33], dark = [35,35,35];
+  function text(txt,x,y,opt){ pdf.text(String(txt), x, y, opt || {}); }
+  function line(y){ pdf.setDrawColor(220,220,220); pdf.line(margin, y, pageW-margin, y); }
+  function row(label, value, y){ pdf.setFont("helvetica","normal"); pdf.setTextColor(...dark); pdf.setFontSize(9); text(label, margin, y); pdf.setFont("helvetica","bold"); text(value, pageW-margin, y, {align:"right"}); line(y+2); }
+  pdf.setFillColor(...red); pdf.rect(0,0,pageW,24,"F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(17); text("Frankfurter Mietspiegel " + c.ver, margin, 10); pdf.setFont("helvetica","normal"); pdf.setFontSize(9); text("Berechnung der ortsüblichen Vergleichsmiete", margin, 16);
+  let y = 33; pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnungsgrundlagen", margin, y); y += 7;
   const wohnung = document.getElementById("wohnung")?.value.trim() || "nicht angegeben";
-  const adr = addrSearch.value.trim() || "nicht angegeben";
-
-  row("Wohnung", wohnung, y); y += 7;
-  row("Wohnfläche", numPDF(a) + " m²", y); y += 7;
-  row("Lagekategorie", selectedLage + " / " + numPDF(lagenzuschlag) + " €/m²", y); y += 7;
-  row("Adresse", adr, y); y += 9;
-
-  // Main result box
-  pdf.setFillColor(250,250,250);
-  pdf.setDrawColor(210,210,210);
-  pdf.roundedRect(margin, y, pageW - margin*2, 42, 3, 3, "FD");
-
-  pdf.setTextColor(...red);
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(10);
-  text("ORTSÜBLICHE VERGLEICHSMIETE", pageW/2, y+8, {align:"center"});
-
-  pdf.setFontSize(20);
-  text(numPDF(pm2Shown) + " €/m²", pageW/2, y+21, {align:"center"});
-  pdf.setFontSize(18);
-  text(euroPDF(orts), pageW/2, y+34, {align:"center"});
-  y += 51;
-
-  // Calculation table
-  pdf.setTextColor(...dark);
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(12);
-  text("Berechnung", margin, y);
-  y += 7;
-
-  row("Basis-Netto-Miete", numPDF(basisShown) + " €/m²", y); y += 7;
-  row("Lagenzuschlag", numPDF(lagenzuschlag) + " €/m²", y); y += 7;
-  row("Summe Zu-/Abschläge", numPDF(merkmaleSum) + " €/m²", y); y += 7;
-  row("Gerundeter Wert", numPDF(pm2Shown) + " €/m²", y); y += 7;
-  row("Monatsmiete", euroPDF(orts), y); y += 10;
-
-  // Brake and range
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(12);
-  text("Mietpreisbremse & Mietspiegel-Spanne", margin, y);
-  y += 7;
-
-  row("Zulässige Höchstmiete (+10 %)", euroPDF(mpb), y); y += 7;
-  row("Obere Mietspiegelspanne (+16 %)", euroPDF(spanHigh), y); y += 11;
-
-  // Features
-  pdf.setFont("helvetica","bold");
-  pdf.setFontSize(12);
-  text("Aktive Merkmale", margin, y);
-  y += 6;
-
-  pdf.setFont("helvetica","normal");
-  pdf.setFontSize(7.6);
-  pdf.setTextColor(...dark);
-
-  if (!active.length) {
-    text("Keine Merkmale ausgewählt.", margin, y);
-    y += 5;
-  } else {
-    const colGap = 8;
-    const colW = (pageW - margin*2 - colGap) / 2;
-    const leftX = margin;
-    const rightX = margin + colW + colGap;
-    const startY = y;
-    const rowH = active.length > 22 ? 4.2 : 4.8;
-    const maxRows = Math.ceil(active.length / 2);
-
-    active.forEach((it, idx) => {
-      const inRight = idx >= maxRows;
-      const localIdx = inRight ? idx - maxRows : idx;
-      const x = inRight ? rightX : leftX;
-      const yy = startY + localIdx * rowH;
-
-      const val = (it.value >= 0 ? "+" : "") + numPDF(it.value) + " €/m²";
-      let name = String(it.name)
-        .replace(/≥/g, '>=')
-        .replace(/≤/g, '<=')
-        .replace(/[–—]/g, '-')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      const maxChars = 42;
-      if (name.length > maxChars) name = name.substring(0,maxChars-1) + '…';
-
-      pdf.setFont('courier','normal');
-      text(name, x, yy);
-      pdf.setFont('courier','bold');
-      text(val, x + colW, yy, {align:'right'});
-    });
-
-    y = startY + maxRows * rowH + 7;
-  }
-
-  text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 287, {align:"right"});
-
-  
-  let pdfName = "Mietspiegel-Ergebnis";
-  const wohnungName = document.getElementById("wohnung")?.value?.trim();
-
-  if (wohnungName) {
-    pdfName = wohnungName
-      .replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g, "_")
-      .replace(/_+/g, "_")
-      .replace(/^_|_$/g, "");
-  }
-
-  pdf.save(pdfName + ".pdf");
-
+  row("Wohnung", wohnung, y); y += 7; row("Wohnfläche", num(c.a) + " m²", y); y += 7;
+  c.meta.forEach(([k,v]) => { row(k, v, y); y += 7; }); y += 2;
+  pdf.setFillColor(250,250,250); pdf.setDrawColor(210,210,210); pdf.roundedRect(margin, y, pageW-margin*2, 42, 3, 3, "FD");
+  pdf.setTextColor(...red); pdf.setFont("helvetica","bold"); pdf.setFontSize(10); text("ORTSÜBLICHE VERGLEICHSMIETE", pageW/2, y+8, {align:"center"}); pdf.setFontSize(20); text(num(c.pm2Shown)+" €/m²", pageW/2, y+21, {align:"center"}); pdf.setFontSize(18); text(euro(c.orts), pageW/2, y+34, {align:"center"}); y += 51;
+  pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnung", margin, y); y += 7;
+  row("Basis-Netto-Miete", num(c.basisShown)+" €/m²", y); y += 7; row(c.ver==="2024" ? "Wohnlagenzuschlag" : "Lagenzuschlag", num(c.lager)+" €/m²", y); y += 7; row("Summe Zu-/Abschläge", num(c.merkmaleSum)+" €/m²", y); y += 7; row("Gerundeter Wert", num(c.pm2Shown)+" €/m²", y); y += 7; row("Monatsmiete", euro(c.orts), y); y += 10;
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Mietpreisbremse & Mietspiegel-Spanne", margin, y); y += 7; row("Zulässige Höchstmiete (+10 %)", euro(c.mpb), y); y += 7; row("Obere Mietspiegelspanne (+"+Math.round(c.spanPct*100)+" %)", euro(c.spanHigh), y); y += 11;
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Aktive Merkmale", margin, y); y += 6; pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
+  if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+7; }
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 287, {align:"right"});
+  const safeWohnung = wohnung === "nicht angegeben" ? "Mietspiegel-Ergebnis" : wohnung.replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
+  pdf.save(safeWohnung + "_" + c.ver + ".pdf");
 }
 </script>
-
 </body>
 </html>
