@@ -877,7 +877,19 @@ function createPDF(){
 
   text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 287, {align:"right"});
 
-  pdf.save("Mietspiegel-Ergebnis.pdf");
+  
+  let pdfName = "Mietspiegel-Ergebnis";
+  const wohnungName = document.getElementById("wohnung")?.value?.trim();
+
+  if (wohnungName) {
+    pdfName = wohnungName
+      .replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+  }
+
+  pdf.save(pdfName + ".pdf");
+
 }
 </script>
 
