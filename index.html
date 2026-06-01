@@ -644,7 +644,12 @@ document.addEventListener("input", calc);
 document.addEventListener("change", calc);
 
 function exportConfig() {
-  const cfg = {version: currentVersion(), area: area.value, wohnung: document.getElementById("wohnung").value};
+  const cfg = {
+    version: currentVersion(),
+    area: area.value,
+    wohnung: document.getElementById("wohnung").value
+  };
+
   if (currentVersion() === "2026") {
     cfg.lage = lageSel.selectedIndex;
     cfg.address = addrSearch.value;
@@ -653,19 +658,69 @@ function exportConfig() {
     cfg.wohnlage = wohnlage2024.value;
     cfg.zentral = zentraleLage2024.checked;
   }
+
   cfg.features = [];
-  feats.forEach((f,i)=>{ if(document.getElementById("f"+i)?.checked) cfg.features.push(i); });
+  feats.forEach((f,i)=>{
+    if(document.getElementById("f"+i)?.checked) cfg.features.push(i);
+  });
+
   return cfg;
 }
+
 function generateShareLink() {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(exportConfig()))));
   return location.origin + location.pathname + "?cfg=" + encodeURIComponent(encoded);
 }
+
 function copyShareLink() {
-  navigator.clipboard.writeText(generateShareLink()).then(()=>alert("Link kopiert"));
+  navigator.clipboard.writeText(generateShareLink())
+    .then(()=>alert("Link kopiert"));
 }
 
-load(); loadWohnlagen(); calc();
+function importConfigFromUrl() {
+  try {
+    const params = new URLSearchParams(location.search);
+    if (!params.has("cfg")) return false;
+
+    const cfg = JSON.parse(
+      decodeURIComponent(
+        escape(atob(params.get("cfg")))
+      )
+    );
+
+    suppressSave = true;
+
+    if (cfg.version === "2024") {
+      applyVersion("2024", []);
+      baualter2024.value = cfg.baualter || "bis1977";
+      wohnlage2024.value = cfg.wohnlage || "0";
+      zentraleLage2024.checked = !!cfg.zentral;
+    } else {
+      applyVersion("2026", []);
+      addrSearch.value = cfg.address || "";
+      if (Number.isInteger(cfg.lage)) lageSel.selectedIndex = cfg.lage;
+    }
+
+    area.value = cfg.area || "";
+    document.getElementById("wohnung").value = cfg.wohnung || "";
+
+    feats.forEach((f,i)=>{
+      const cb = document.getElementById("f"+i);
+      if (cb) cb.checked = !!(cfg.features && cfg.features.includes(i));
+    });
+
+    updateMutualExclusions();
+    suppressSave = false;
+    calc();
+    return true;
+  } catch(e) {
+    console.error(e);
+    return false;
+  }
+}
+
+load();
+if(!importConfigFromUrl()){ loadWohnlagen(); calc(); } else { loadWohnlagen(); }
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
