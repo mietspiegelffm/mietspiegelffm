@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Frankfurter Mietspiegel 2024 / 2026</title>
+<title>Frankfurter Mietspiegel 2022 / 2024 / 2026</title>
 <style>
 :root {
   --red:#b10021;
@@ -268,6 +268,7 @@ button:hover {
           <select id="version">
             <option value="2026" selected>2026</option>
             <option value="2024">2024</option>
+            <option value="2022">2022</option>
           </select>
           <div class="version-note" id="versionNote">2026: Straßenregister / Lage 1–10.</div>
         </div>
@@ -301,7 +302,7 @@ button:hover {
           <select id="lage"></select>
         </div>
         <div id="wohnlage2024Block" class="hidden">
-          <label for="wohnlage2024"><b>Wohnlage 2024</b></label>
+          <label for="wohnlage2024"><b id="wohnlageLabel">Wohnlage 2024</b></label>
           <select id="wohnlage2024">
             <option value="1.54">Sehr gute Wohnlage (+1,54 €/m²)</option>
             <option value="0.31">Gehobene Wohnlage (+0,31 €/m²)</option>
@@ -359,6 +360,72 @@ const feats2024 = [
   ["Kleiner Freisitz",0.32], ["Großer Balkon oder große Loggia",0.55], ["Fehlender oder abschlagsfähiger Fußboden",-1.22],
   ["Mehrschichtparkett",0.56], ["Besonders hochwertiger Fußboden",1.05], ["Hochwertiger Altbau",2.03]
 ];
+
+
+const wohnlageValues = {
+  "2024": {sehrGut:1.54, gehoben:0.31, mittel:0, einfach:-0.45, zentral:1.13},
+  "2022": {sehrGut:1.38, gehoben:0.28, mittel:0, einfach:-0.40, zentral:1.01}
+};
+
+const feats2022 = [
+  ["Einfacher Heizungsstandard",-1.42], ["Einfacher Ausstattungsstandard",-0.98], ["Auf-Putz-Leitungen",-0.38],
+  ["Hohe Decken",2.35], ["Videogegensprechanlage",1.14], ["Standard-Einbauküche",0.96],
+  ["Neuere Standard-Einbauküche",0.69], ["Modernisiertes Standardbad",0.97], ["Umfangreiches Bad",1.00],
+  ["Hochwertige Bad-Elemente",0.47], ["Mehrere Badezimmer",0.48], ["Ein-Scheiben-Verglasung",-0.79],
+  ["2-Scheiben-Wärmeschutz-Verglasung",0.17], ["3-Scheiben-Wärmeschutz-Verglasung",1.10], ["Elektrische Rollläden",1.61],
+  ["Kleiner Freisitz",0.29], ["Großer Balkon oder große Loggia",0.49], ["Fehlender oder abschlagsfähiger Fußboden",-1.09],
+  ["Mehrschichtparkett",0.50], ["Besonders hochwertiger Fußboden",0.94], ["Hochwertiger Altbau",1.82]
+];
+
+const table2022 = {
+  areas:[15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125,130,135,140,145,150,155,160],
+  bis1977:[18.21,15.25,13.47,12.28,11.43,10.80,10.30,9.91,9.58,9.31,9.09,8.89,8.72,8.57,8.44,8.33,8.22,8.13,8.04,7.97,7.90,7.83,7.77,7.72,7.67,7.62,7.58,7.53,7.50,7.46],
+  "1978_1994":[18.75,15.78,14.00,12.81,11.96,11.33,10.83,10.44,10.11,9.85,9.62,9.42,9.25,9.10,8.97,8.86,8.75,8.66,8.57,8.50,8.43,8.36,8.30,8.25,8.20,8.15,8.11,8.07,8.03,7.99],
+  "1995_2009":[19.04,16.07,14.29,13.10,12.25,11.62,11.12,10.73,10.41,10.14,9.91,9.71,9.54,9.39,9.26,9.15,9.04,8.95,8.86,8.79,8.72,8.65,8.59,8.54,8.49,8.44,8.40,8.36,8.32,8.28],
+  "2010_2021":[19.51,16.54,14.76,13.57,12.72,12.09,11.59,11.20,10.87,10.61,10.38,10.18,10.01,9.86,9.73,9.62,9.51,9.42,9.33,9.26,9.19,9.12,9.06,9.01,8.96,8.91,8.87,8.83,8.79,8.75]
+};
+
+function interpolateLinear(x, x1, y1, x2, y2) {
+  return y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
+}
+
+function baseRent2022(a, cls) {
+  const xs = table2022.areas;
+  const ys = table2022[cls] || table2022.bis1977;
+  if (a < xs[0] || a > xs[xs.length-1]) return NaN;
+  for (let i=0; i<xs.length; i++) {
+    if (Math.abs(a - xs[i]) < 1e-9) return ys[i];
+  }
+  for (let i=0; i<xs.length-1; i++) {
+    if (a > xs[i] && a < xs[i+1]) return interpolateLinear(a, xs[i], ys[i], xs[i+1], ys[i+1]);
+  }
+  return NaN;
+}
+
+function setWohnlageOptions(ver, selectedValue) {
+  const vals = wohnlageValues[ver] || wohnlageValues["2024"];
+  const options = [
+    [vals.sehrGut, `Sehr gute Wohnlage (+${num(vals.sehrGut)} €/m²)`],
+    [vals.gehoben, `Gehobene Wohnlage (+${num(vals.gehoben)} €/m²)`],
+    [vals.mittel, "Mittlere Wohnlage (0,00 €/m²)"],
+    [vals.einfach, `Einfache / sehr einfache Wohnlage (${num(vals.einfach)} €/m²)`]
+  ];
+  wohnlage2024.innerHTML = "";
+  options.forEach(([value, label]) => {
+    const o = document.createElement("option");
+    o.value = String(value);
+    o.textContent = label;
+    wohnlage2024.add(o);
+  });
+  const desired = selectedValue == null ? "0" : String(selectedValue);
+  const match = Array.from(wohnlage2024.options).find(o => Math.abs(parseDE(o.value) - parseDE(desired)) < 0.001);
+  wohnlage2024.value = match ? match.value : "0";
+  const label = document.getElementById("wohnlageLabel");
+  if (label) label.textContent = "Wohnlage " + ver;
+  const price = zentraleLage2024?.closest("label")?.querySelector(".price");
+  if (price) price.textContent = "+" + num(vals.zentral);
+}
+
 
 const table2024 = {
   areas:[15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105,110,115,120,125,130,135,140,145,150,155,160],
@@ -426,7 +493,7 @@ function baseRent2024(a, cls) {
 
 function featureIndex(name) { return feats.findIndex(f => f[0] === name); }
 function featureCheckbox(name) { const idx = featureIndex(name); return idx >= 0 ? document.getElementById("f" + idx) : null; }
-function getFeaturePairs() { return currentVersion()==="2024" ? [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]] : [["Hochwertiger Altbau", "Hochwertiger Fußboden"]]; }
+function getFeaturePairs() { return (currentVersion()==="2024" || currentVersion()==="2022") ? [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]] : [["Hochwertiger Altbau", "Hochwertiger Fußboden"]]; }
 function updateMutualExclusions() {
   getFeaturePairs().forEach(([a,b]) => {
     const cbA = featureCheckbox(a), cbB = featureCheckbox(b);
@@ -437,7 +504,7 @@ function updateMutualExclusions() {
     if (cbB.checked) { cbA.checked = false; cbA.disabled = true; labelA.dataset.note = "Nicht kombinierbar mit " + b; }
     else { cbA.disabled = false; delete labelA.dataset.note; }
   });
-  if (currentVersion()==="2024") {
+  if (currentVersion()==="2024" || currentVersion()==="2022") {
     const standard = featureCheckbox("Standard-Einbauküche");
     const newer = featureCheckbox("Neuere Standard-Einbauküche");
     if (standard && newer) {
@@ -508,30 +575,42 @@ function collectChecks() {
   feats.forEach((f,i) => { checks[f[0]] = !!document.getElementById("f"+i)?.checked; });
   return checks;
 }
-function storageKey() { return "ffm_mietspiegel_2024_2026_final"; }
+function storageKey() { return "ffm_mietspiegel_2022_2024_2026_final"; }
 function save() {
   if (suppressSave) return;
   const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
-  state.version = currentVersion(); state.area = area.value; state.wohnung = document.getElementById("wohnung").value;
-  if (currentVersion()==="2026") state.v2026 = {lage: lageSel.selectedIndex, address: addrSearch.value, checks: collectChecks()};
-  else state.v2024 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked, checks: collectChecks()};
+  state.version = currentVersion();
+  state.area = area.value;
+  state.wohnung = document.getElementById("wohnung").value;
+  if (currentVersion()==="2026") {
+    state.v2026 = {lage: lageSel.selectedIndex, address: addrSearch.value, checks: collectChecks()};
+  } else if (currentVersion()==="2024") {
+    state.v2024 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked, checks: collectChecks()};
+  } else {
+    state.v2022 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked, checks: collectChecks()};
+  }
   localStorage.setItem(storageKey(), JSON.stringify(state));
 }
 function applyVersion(ver, restoredChecks) {
   activeVersion = ver;
   versionSel.value = ver;
   const is2024 = ver === "2024";
+  const is2022 = ver === "2022";
+  const oldWohnlage = wohnlage2024.value;
   document.getElementById("mainTitle").textContent = "Frankfurter Mietspiegel " + ver;
   document.getElementById("featureYear").textContent = ver;
-  document.getElementById("versionNote").textContent = is2024 ? "2024: Baualtersklasse, Wohnlage und zentrale Lage." : "2026: Straßenregister / Lage 1–10.";
-  document.getElementById("addrBlock").classList.toggle("hidden", is2024);
-  document.getElementById("lage2026Block").classList.toggle("hidden", is2024);
-  document.getElementById("baualter2024Block").classList.toggle("hidden", !is2024);
-  document.getElementById("wohnlage2024Block").classList.toggle("hidden", !is2024);
-  feats = is2024 ? feats2024 : feats2026;
+  document.getElementById("versionNote").textContent = (is2024 || is2022)
+    ? ver + ": Baualtersklasse, Wohnlage und zentrale Lage."
+    : "2026: Straßenregister / Lage 1–10.";
+  document.getElementById("addrBlock").classList.toggle("hidden", is2024 || is2022);
+  document.getElementById("lage2026Block").classList.toggle("hidden", is2024 || is2022);
+  document.getElementById("baualter2024Block").classList.toggle("hidden", !(is2024 || is2022));
+  document.getElementById("wohnlage2024Block").classList.toggle("hidden", !(is2024 || is2022));
+  if (is2024 || is2022) setWohnlageOptions(ver, oldWohnlage);
+  feats = is2022 ? feats2022 : (is2024 ? feats2024 : feats2026);
   renderFeatures(restoredChecks || []);
   hideSuggestions();
-  if (!is2024) updateAddressSuggestions();
+  if (!is2024 && !is2022) updateAddressSuggestions();
 }
 function load() {
   suppressSave = true;
@@ -540,14 +619,28 @@ function load() {
     if (s.area) area.value = s.area;
     if (s.wohnung) document.getElementById("wohnung").value = s.wohnung;
     const ver = s.version || "2026";
-    if (ver === "2024" && s.v2024) {
-      baualter2024.value = s.v2024.baualter || "bis1977"; wohnlage2024.value = String(s.v2024.wohnlage ?? "0"); zentraleLage2024.checked = !!s.v2024.zentral;
-      applyVersion("2024", s.v2024.checks || []);
+    if (ver === "2024") {
+      const v = s.v2024 || {};
+      baualter2024.value = v.baualter || "bis1977";
+      setWohnlageOptions("2024", v.wohnlage ?? "0");
+      zentraleLage2024.checked = !!v.zentral;
+      applyVersion("2024", v.checks || []);
+    } else if (ver === "2022") {
+      const v = s.v2022 || {};
+      baualter2024.value = v.baualter || "bis1977";
+      setWohnlageOptions("2022", v.wohnlage ?? "0");
+      zentraleLage2024.checked = !!v.zentral;
+      applyVersion("2022", v.checks || []);
     } else {
-      if (s.v2026) { if (s.v2026.address) addrSearch.value = s.v2026.address; if (Number.isInteger(s.v2026.lage)) lageSel.selectedIndex = s.v2026.lage; }
+      if (s.v2026) {
+        if (s.v2026.address) addrSearch.value = s.v2026.address;
+        if (Number.isInteger(s.v2026.lage)) lageSel.selectedIndex = s.v2026.lage;
+      }
       applyVersion("2026", (s.v2026 && s.v2026.checks) || []);
     }
-  } catch(e) { applyVersion("2026", []); }
+  } catch(e) {
+    applyVersion("2026", []);
+  }
   suppressSave = false;
 }
 
@@ -557,11 +650,12 @@ function calculation() {
   if (!a || a < 15) return {error:"Wohnfläche mindestens 15 m²"};
   const ver = currentVersion();
   let basisExact, basisShown, lageLabel, lagenzuschlag, spanPct, meta = [];
-  if (ver === "2024") {
-    if (a > 160) return {error:"Der Mietspiegel 2024 enthält Tabellenwerte nur bis 160 m²."};
-    basisExact = baseRent2024(a, baualter2024.value);
+  if (ver === "2024" || ver === "2022") {
+    if (a > 160) return {error:"Der Mietspiegel " + ver + " enthält Tabellenwerte nur bis 160 m²."};
+    basisExact = ver === "2022" ? baseRent2022(a, baualter2024.value) : baseRent2024(a, baualter2024.value);
     basisShown = round2(basisExact);
-    const zentral = zentraleLage2024.checked ? 1.13 : 0;
+    const vals = wohnlageValues[ver];
+    const zentral = zentraleLage2024.checked ? vals.zentral : 0;
     lagenzuschlag = round2(parseDE(wohnlage2024.value) + zentral);
     const wlText = wohnlage2024.options[wohnlage2024.selectedIndex]?.textContent.replace(/\s*\(.*/,"") || "";
     lageLabel = wlText + (zentraleLage2024.checked ? " + Zentrale Lage" : "");
@@ -588,14 +682,17 @@ function calc() {
   if (!area.value.trim()) { document.getElementById("out").innerHTML = ""; return; }
   const c = calculation();
   if (c.error) { document.getElementById("out").innerHTML = `<div class="result-box"><b>${c.error}</b></div>`; save(); return; }
+  const lageRowLabel = (c.ver==="2024" || c.ver==="2022") ? "Wohnlagenzuschlag" : "Lagenzuschlag";
   document.getElementById("out").innerHTML = `
     <div class="row"><span>Basis-Netto-Miete</span><b>${num(c.basisShown)} €/m²</b></div>
-    <div class="row"><span>${c.ver==="2024" ? "Wohnlagenzuschlag" : "Lagenzuschlag"}</span><b>${num(c.lager)} €/m²</b></div>
+    <div class="row"><span>${lageRowLabel}</span><b>${num(c.lager)} €/m²</b></div>
     <div class="row"><span>Zu-/Abschläge</span><b>${num(c.merkmaleSum)} €/m²</b></div>
     <div class="result-title">ORTSÜBLICHE VERGLEICHSMIETE</div>
     <div class="result-values"><div class="big">${num(c.pm2Shown)} €/m²</div><div class="big">${euro(c.orts)}</div></div>
     <div class="result-box"><div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div><div class="label">Zulässige Höchstmiete</div><div class="big">${euro(c.mpb)}</div><div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div><div class="big">${euro(c.spanHigh)}</div></div>`;
-  document.getElementById("resultHint").textContent = c.ver==="2024" ? "2024: Basiswert über stückweise hyperbolische Funktionen aus Tabelle 1; Tabellenpunkte centgenau." : "";
+  document.getElementById("resultHint").textContent =
+    c.ver==="2024" ? "2024: Basiswert über stückweise hyperbolische Funktionen aus Tabelle 1; Tabellenpunkte centgenau." :
+    c.ver==="2022" ? "2022: Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
   save();
 }
 
@@ -613,22 +710,17 @@ addrSearch.addEventListener("keydown", (e) => {
 document.addEventListener("click", e => { if (!e.target.closest(".addr-wrap")) hideSuggestions(); });
 lageSel.addEventListener("change", () => { if (addrSearch.value.trim()) addrStatus.textContent = "Lage wurde manuell geändert."; });
 versionSel.addEventListener("change", () => {
-  // Beim change-Event hat das Select bereits den neuen Wert.
-  // activeVersion enthält noch die bisher aktive Version.
-  // Deshalb speichert save() zuerst korrekt den Stand der alten Version.
   const nextVersion = versionSel.value;
   save();
-
   const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
   suppressSave = true;
 
-  if (nextVersion === "2024") {
-    if (state.v2024) {
-      baualter2024.value = state.v2024.baualter || "bis1977";
-      wohnlage2024.value = String(state.v2024.wohnlage ?? "0");
-      zentraleLage2024.checked = !!state.v2024.zentral;
-    }
-    applyVersion("2024", (state.v2024 && state.v2024.checks) || {});
+  if (nextVersion === "2024" || nextVersion === "2022") {
+    const v = nextVersion === "2024" ? (state.v2024 || {}) : (state.v2022 || {});
+    baualter2024.value = v.baualter || "bis1977";
+    setWohnlageOptions(nextVersion, v.wohnlage ?? "0");
+    zentraleLage2024.checked = !!v.zentral;
+    applyVersion(nextVersion, v.checks || {});
   } else {
     if (state.v2026) {
       addrSearch.value = state.v2026.address || "";
@@ -682,18 +774,13 @@ function importConfigFromUrl() {
     const params = new URLSearchParams(location.search);
     if (!params.has("cfg")) return false;
 
-    const cfg = JSON.parse(
-      decodeURIComponent(
-        escape(atob(params.get("cfg")))
-      )
-    );
-
+    const cfg = JSON.parse(decodeURIComponent(escape(atob(params.get("cfg")))));
     suppressSave = true;
 
-    if (cfg.version === "2024") {
-      applyVersion("2024", []);
+    if (cfg.version === "2024" || cfg.version === "2022") {
+      applyVersion(cfg.version, []);
       baualter2024.value = cfg.baualter || "bis1977";
-      wohnlage2024.value = cfg.wohnlage || "0";
+      setWohnlageOptions(cfg.version, cfg.wohnlage || "0");
       zentraleLage2024.checked = !!cfg.zentral;
     } else {
       applyVersion("2026", []);
@@ -742,7 +829,7 @@ function createPDF(){
   pdf.setFillColor(250,250,250); pdf.setDrawColor(210,210,210); pdf.roundedRect(margin, y, pageW-margin*2, 42, 3, 3, "FD");
   pdf.setTextColor(...red); pdf.setFont("helvetica","bold"); pdf.setFontSize(10); text("ORTSÜBLICHE VERGLEICHSMIETE", pageW/2, y+8, {align:"center"}); pdf.setFontSize(20); text(num(c.pm2Shown)+" €/m²", pageW/2, y+21, {align:"center"}); pdf.setFontSize(18); text(euro(c.orts), pageW/2, y+34, {align:"center"}); y += 51;
   pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnung", margin, y); y += 7;
-  row("Basis-Netto-Miete", num(c.basisShown)+" €/m²", y); y += 7; row(c.ver==="2024" ? "Wohnlagenzuschlag" : "Lagenzuschlag", num(c.lager)+" €/m²", y); y += 7; row("Summe Zu-/Abschläge", num(c.merkmaleSum)+" €/m²", y); y += 7; row("Gerundeter Wert", num(c.pm2Shown)+" €/m²", y); y += 7; row("Monatsmiete", euro(c.orts), y); y += 10;
+  row("Basis-Netto-Miete", num(c.basisShown)+" €/m²", y); y += 7; row((c.ver==="2024" || c.ver==="2022") ? "Wohnlagenzuschlag" : "Lagenzuschlag", num(c.lager)+" €/m²", y); y += 7; row("Summe Zu-/Abschläge", num(c.merkmaleSum)+" €/m²", y); y += 7; row("Gerundeter Wert", num(c.pm2Shown)+" €/m²", y); y += 7; row("Monatsmiete", euro(c.orts), y); y += 10;
   pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Mietpreisbremse & Mietspiegel-Spanne", margin, y); y += 7; row("Zulässige Höchstmiete (+10 %)", euro(c.mpb), y); y += 7; row("Obere Mietspiegelspanne (+"+Math.round(c.spanPct*100)+" %)", euro(c.spanHigh), y); y += 11;
   pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Aktive Merkmale", margin, y); y += 6; pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
   if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+7; }
