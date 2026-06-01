@@ -253,8 +253,8 @@ button:hover {
   <div class="wrap hero">
     <div class="wappen"><img src="frankfurt-wappen.webp" alt="Frankfurter Wappen" loading="eager"></div>
     <div>
-      <h1 id="mainTitle">Frankfurter Mietspiegel 2026</h1>
-      <div class="subtitle" id="subtitle">Rechner zur Ermittlung der ortsüblichen Vergleichsmiete</div>
+      <h1 id="mainTitle">Inoffizieller Frankfurter Mietspiegel 2026</h1>
+      <div class="subtitle" id="subtitle">Private, unverbindliche Orientierung zur ortsüblichen Vergleichsmiete</div>
     </div>
   </div>
 </header>
@@ -668,9 +668,39 @@ function createPDF(){
   pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Aktive Merkmale", margin, y); y += 6; pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
   if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+7; }
   pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 287, {align:"right"});
+  pdf.setFont("helvetica","normal");
+  pdf.setFontSize(7);
+  text("Privates und inoffizielles Informationsangebot. Keine Gewähr. Keine Rechtsberatung.", margin, 291);
+  text("Die Nutzung und Verwertung der Berechnung erfolgt auf eigene Verantwortung.", margin, 294);
   const safeWohnung = wohnung === "nicht angegeben" ? "Mietspiegel-Ergebnis" : wohnung.replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
   pdf.save(safeWohnung + "_" + c.ver + ".pdf");
 }
 </script>
+
+<footer style="margin:20px auto;max-width:1200px;padding:16px;font-size:0.85rem;line-height:1.4;">
+  <div class="card">
+    <h3 style="font-size:1rem;margin-bottom:10px;">Impressum / Rechtlicher Hinweis</h3>
+
+    <p>Dies ist ein rein privates und inoffizielles Informationsangebot.
+    Die Website wird ausschließlich zu privaten Zwecken betrieben und
+    verfolgt keine gewerblichen Interessen.</p>
+
+    <p>Es besteht keine Verbindung zur Stadt Frankfurt am Main, zu städtischen
+    Behörden oder zu sonstigen öffentlichen Einrichtungen.</p>
+
+    <p>Die bereitgestellten Informationen, Berechnungen und Ergebnisse dienen
+    ausschließlich der unverbindlichen Orientierung. Sie stellen keine
+    Rechtsberatung dar und ersetzen keine amtlichen Auskünfte.</p>
+
+    <p>Trotz sorgfältiger Erstellung wird keine Gewähr für die Richtigkeit,
+    Vollständigkeit, Aktualität oder Eignung der bereitgestellten Inhalte
+    übernommen.</p>
+
+    <p>Eine Haftung für Schäden, die durch die Nutzung der bereitgestellten
+    Informationen oder Berechnungsergebnisse entstehen, ist ausgeschlossen,
+    soweit gesetzlich zulässig. Die Nutzung erfolgt auf eigene Verantwortung.</p>
+  </div>
+</footer>
+
 </body>
 </html>
