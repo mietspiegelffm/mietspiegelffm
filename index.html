@@ -320,7 +320,7 @@ button:hover {
 
     <div class="card">
       <div class="features-header">
-        <span></span><span>Merkmal <span id="featureYear" class="badge">2026</span></span><span class="price">€/m²</span>
+        <span></span><span>Merkmal</span><span class="price">€/m²</span>
       </div>
       <div id="features" class="features"></div>
     </div>
@@ -421,7 +421,7 @@ function setWohnlageOptions(ver, selectedValue) {
   const match = Array.from(wohnlage2024.options).find(o => Math.abs(parseDE(o.value) - parseDE(desired)) < 0.001);
   wohnlage2024.value = match ? match.value : "0";
   const label = document.getElementById("wohnlageLabel");
-  if (label) label.textContent = "Wohnlage " + ver;
+  if (label) label.textContent = "Wohnlage";
   const price = zentraleLage2024?.closest("label")?.querySelector(".price");
   if (price) price.textContent = "+" + num(vals.zentral);
 }
@@ -575,7 +575,7 @@ function collectChecks() {
   feats.forEach((f,i) => { checks[f[0]] = !!document.getElementById("f"+i)?.checked; });
   return checks;
 }
-function storageKey() { return "ffm_mietspiegel_2022_2024_2026_final"; }
+function storageKey() { return "ffm_mietspiegel"; }
 function save() {
   if (suppressSave) return;
   const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
@@ -598,10 +598,10 @@ function applyVersion(ver, restoredChecks) {
   const is2022 = ver === "2022";
   const oldWohnlage = wohnlage2024.value;
   document.getElementById("mainTitle").textContent = "Frankfurter Mietspiegel " + ver;
-  document.getElementById("featureYear").textContent = ver;
+  
   document.getElementById("versionNote").textContent = (is2024 || is2022)
-    ? ver + ": Baualtersklasse, Wohnlage und zentrale Lage."
-    : "2026: Straßenregister / Lage 1–10.";
+    ? "Baualtersklasse, Wohnlage und zentrale Lage."
+    : "Straßenregister / Lage 1–10.";
   document.getElementById("addrBlock").classList.toggle("hidden", is2024 || is2022);
   document.getElementById("lage2026Block").classList.toggle("hidden", is2024 || is2022);
   document.getElementById("baualter2024Block").classList.toggle("hidden", !(is2024 || is2022));
@@ -691,8 +691,8 @@ function calc() {
     <div class="result-values"><div class="big">${num(c.pm2Shown)} €/m²</div><div class="big">${euro(c.orts)}</div></div>
     <div class="result-box"><div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div><div class="label">Zulässige Höchstmiete</div><div class="big">${euro(c.mpb)}</div><div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div><div class="big">${euro(c.spanHigh)}</div></div>`;
   document.getElementById("resultHint").textContent =
-    c.ver==="2024" ? "2024: Basiswert über stückweise hyperbolische Funktionen aus Tabelle 1; Tabellenpunkte centgenau." :
-    c.ver==="2022" ? "2022: Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
+    c.ver==="2024" ? "Basiswert über stückweise hyperbolische Funktionen aus Tabelle 1; Tabellenpunkte centgenau." :
+    c.ver==="2022" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
   save();
 }
 
