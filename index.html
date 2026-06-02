@@ -472,13 +472,8 @@ function currentVersion() { return activeVersion; }
 // 2026 bleibt unverändert.
 function baseRent2026(a) { return 6.5398988 + 173.8715515 / a; }
 
-// 2024: stückweise hyperbolische Funktionen y=A+B/x je Baualtersklasse und Größenintervall.
-// Dadurch werden die amtlichen Tabellenpunkte auf Cent genau getroffen.
-function hyperbolicBetween(x, x1, y1, x2, y2) {
-  const B = (y1 - y2) / (1/x1 - 1/x2);
-  const A = y1 - B / x1;
-  return A + B / x;
-}
+// 2024: lineare Interpolation zwischen den Tabellenwerten (analog 2022).
+
 function baseRent2024(a, cls) {
   const xs = table2024.areas;
   const ys = table2024[cls] || table2024.bis1977;
@@ -487,7 +482,7 @@ function baseRent2024(a, cls) {
     if (Math.abs(a - xs[i]) < 1e-9) return ys[i];
   }
   for (let i=0; i<xs.length-1; i++) {
-    if (a > xs[i] && a < xs[i+1]) return hyperbolicBetween(a, xs[i], ys[i], xs[i+1], ys[i+1]);
+    if (a > xs[i] && a < xs[i+1]) return interpolateLinear(a, xs[i], ys[i], xs[i+1], ys[i+1]);
   }
   return NaN;
 }
@@ -692,7 +687,7 @@ function calc() {
     <div class="result-values"><div class="big">${num(c.pm2Shown)} €/m²</div><div class="big">${euro(c.orts)}</div></div>
     <div class="result-box"><div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div><div class="label">Zulässige Höchstmiete</div><div class="big">${euro(c.mpb)}</div><div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div><div class="big">${euro(c.spanHigh)}</div></div>`;
   document.getElementById("resultHint").textContent =
-    c.ver==="2024" ? "Basiswert über stückweise hyperbolische Funktionen aus Tabelle 1; Tabellenpunkte centgenau." :
+    c.ver==="2024" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." :
     c.ver==="2022" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
   save();
 }
