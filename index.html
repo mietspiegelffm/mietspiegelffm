@@ -816,24 +816,79 @@ function createPDF(){
   const pageW = 210, margin = 12, red = [177,0,33], dark = [35,35,35];
   function text(txt,x,y,opt){ pdf.text(String(txt), x, y, opt || {}); }
   function line(y){ pdf.setDrawColor(220,220,220); pdf.line(margin, y, pageW-margin, y); }
-  function row(label, value, y){ pdf.setFont("helvetica","normal"); pdf.setTextColor(...dark); pdf.setFontSize(9); text(label, margin, y); pdf.setFont("helvetica","bold"); text(value, pageW-margin, y, {align:"right"}); line(y+2); }
+  function row(label, value, y)
+    { 
+	  pdf.setFont("helvetica","normal"); 
+	  pdf.setTextColor(...dark); 
+	  pdf.setFontSize(9); 
+	  text(label, margin, y); 
+	  pdf.setFont("helvetica","bold"); 
+	  text(value, pageW-margin, y, {align:"right"}); 
+	  line(y+2); 
+	}
   pdf.setFillColor(...red); pdf.rect(0,0,pageW,24,"F"); pdf.setTextColor(255,255,255); pdf.setFont("helvetica","bold"); pdf.setFontSize(17); text("Frankfurter Mietspiegel " + c.ver, margin, 10); pdf.setFont("helvetica","normal"); pdf.setFontSize(9); text("Berechnung der ortsüblichen Vergleichsmiete", margin, 16);
   let y = 33; pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnungsgrundlagen", margin, y); y += 7;
   const wohnung = document.getElementById("wohnung")?.value.trim() || "nicht angegeben";
   row("Wohnung", wohnung, y); y += 7; row("Wohnfläche", num(c.a) + " m²", y); y += 7;
   c.meta.forEach(([k,v]) => { row(k, v, y); y += 7; }); y += 2;
   pdf.setFillColor(250,250,250); pdf.setDrawColor(210,210,210); pdf.roundedRect(margin, y, pageW-margin*2, 42, 3, 3, "FD");
-  pdf.setTextColor(...red); pdf.setFont("helvetica","bold"); pdf.setFontSize(10); text("ORTSÜBLICHE VERGLEICHSMIETE", pageW/2, y+8, {align:"center"}); pdf.setFontSize(20); text(num(c.pm2Shown)+" €/m²", pageW/2, y+21, {align:"center"}); pdf.setFontSize(18); text(euro(c.orts), pageW/2, y+34, {align:"center"}); y += 51;
-  pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnung", margin, y); y += 7;
-  row("Basis-Netto-Miete", num(c.basisShown)+" €/m²", y); y += 7; row((c.ver==="2024" || c.ver==="2022") ? "Wohnlagenzuschlag" : "Lagenzuschlag", num(c.lager)+" €/m²", y); y += 7; row("Summe Zu-/Abschläge", num(c.merkmaleSum)+" €/m²", y); y += 7; row("Gerundeter Wert", num(c.pm2Shown)+" €/m²", y); y += 7; row("Monatsmiete", euro(c.orts), y); y += 10;
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Mietpreisbremse & Mietspiegel-Spanne", margin, y); y += 7; row("Zulässige Höchstmiete (+10 %)", euro(c.mpb), y); y += 7; row("Obere Mietspiegelspanne (+"+Math.round(c.spanPct*100)+" %)", euro(c.spanHigh), y); y += 11;
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Aktive Merkmale", margin, y); y += 6; pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
+  pdf.setTextColor(...red); pdf.setFont("helvetica","bold"); 
+  pdf.setFontSize(10); text("ORTSÜBLICHE VERGLEICHSMIETE", pageW/2, y+8, {align:"center"}); 
+  pdf.setFontSize(20); text(num(c.pm2Shown)+" €/m²", pageW/2, y+21, {align:"center"}); 
+  pdf.setFontSize(18); text(euro(c.orts), pageW/2, y+34, {align:"center"}); 
+  y += 54; pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnung", margin, y); 
+  y += 7;
+  row("Basis-Netto-Miete", num(c.basisShown)+" €/m²", y);
+
+  if (c.ver === "2024" || c.ver === "2022") {
+
+    const wohnlageWert = parseDE(wohnlage2024.value);
+    const zentralWert = zentraleLage2024.checked
+      ? wohnlageValues[c.ver].zentral
+      : 0;
+
+    y += 7;
+    row("Wohnlage", num(wohnlageWert) + " €/m²", y);
+
+    if (zentraleLage2024.checked) {
+      y += 7;
+      row("Zentrale Lage", num(zentralWert) + " €/m²", y);
+    }
+
+  } else {
+
+    y += 7;
+    row("Lagenzuschlag", num(c.lager) + " €/m²", y);
+
+  }
+
+  y += 7;
+  row("Summe Zu-/Abschläge", num(c.merkmaleSum)+" €/m²", y);
+  pdf.setDrawColor(...dark);
+  pdf.line(pageW - 35, y+2 , pageW - margin, y+2);
+  y += 7;
+  pdf.setFont("helvetica","bold");
+  pdf.setTextColor(...dark);
+  pdf.setFontSize(9);
+  text("Ortsübliche Vergleichsmiete pro m²", margin, y);
+  text(num(c.pm2Shown)+" €/m²", pageW-margin, y, {align:"right"});
+  line(y+2);  
+  y += 7; 
+  text("Monatliche Vergleichsmiete (" + num(c.pm2Shown) + " €/m² × " + num(c.a) + " m²)", margin, y);
+  text(euro(c.orts),pageW-margin, y, {align:"right"});
+  y += 15; 
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); 
+  text("Mietpreisbremse & Mietspiegel-Spanne", margin, y); 
+  y += 7; row("Zulässige Höchstmiete (+10 %)", euro(c.mpb), y); 
+  y += 7; row("Obere Mietspiegelspanne (+"+Math.round(c.spanPct*100)+" %)", euro(c.spanHigh), y); 
+  y += 15;
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Merkmale (Zu- / Abschläge)", margin, y); y += 6; pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
   if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+7; }
-  pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 287, {align:"right"});
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 281, {align:"right"});
   pdf.setFont("helvetica","normal");
-  pdf.setFontSize(7);
-  text("Privates und inoffizielles Informationsangebot. Keine Gewähr. Keine Rechtsberatung.", margin, 291);
-  text("Die Nutzung und Verwertung der Berechnung erfolgt auf eigene Verantwortung.", margin, 294);
+  pdf.setFontSize(8);
+  text("Privates und inoffizielles Informationsangebot. Keine Gewähr. Keine Rechtsberatung.", margin, 288);
+  text("Die Nutzung und Verwertung der Berechnung erfolgt auf eigene Verantwortung.", margin, 291);
   const safeWohnung = wohnung === "nicht angegeben" ? "Mietspiegel-Ergebnis" : wohnung.replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
   pdf.save(safeWohnung + "_" + c.ver + ".pdf");
 }
