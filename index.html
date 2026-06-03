@@ -256,6 +256,7 @@ button:hover {
     <div>
       <h1 id="mainTitle">Frankfurter Mietspiegel</h1>
       <div class="subtitle" id="subtitle">Ermittlung der ortsüblichen Vergleichsmiete – inoffiziell</div>
+      <div class="version-note" id="appVersion"></div>
     </div>
   </div>
 </header>
@@ -337,6 +338,7 @@ button:hover {
 </main>
 
 <script>
+const APP_VERSION = "0.90";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
@@ -468,6 +470,8 @@ function round2(x) { return Math.round((x + Number.EPSILON) * 100) / 100; }
 function euro(x) { return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}) + " €"; }
 function num(x) { return x.toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function currentVersion() { return activeVersion; }
+
+document.getElementById("appVersion").textContent = "Version " + APP_VERSION;
 
 // 2026 bleibt unverändert.
 function baseRent2026(a) { return 6.5398988 + 173.8715515 / a; }
@@ -896,12 +900,13 @@ function createPDF(){
   pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 281, {align:"right"});
   pdf.setFont("helvetica","normal");
   pdf.setFontSize(8);
+  text("Version " + APP_VERSION, margin, 273);
   text("Projektseite:", margin, 276);
   text("https://mietspiegelffm.github.io/mietspiegelffm/", margin, 279);
   text("Privates und inoffizielles Informationsangebot. Keine Gewähr. Keine Rechtsberatung.", margin, 288);
   text("Die Nutzung und Verwertung der Berechnung erfolgt auf eigene Verantwortung.", margin, 291);
   const safeWohnung = wohnung === "nicht angegeben" ? "Mietspiegel-Ergebnis" : wohnung.replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
-  pdf.save(safeWohnung + "_" + c.ver + ".pdf");
+  pdf.save(safeWohnung + "_" + c.ver + "_v" + APP_VERSION + ".pdf");
 }
 </script>
 
