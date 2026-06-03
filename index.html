@@ -704,7 +704,16 @@ addrSearch.addEventListener("keydown", (e) => {
   children.forEach((el,i) => el.classList.toggle("active", i === activeSuggestion));
 });
 document.addEventListener("click", e => { if (!e.target.closest(".addr-wrap")) hideSuggestions(); });
-lageSel.addEventListener("change", () => { if (addrSearch.value.trim()) addrStatus.textContent = "Lage wurde manuell geändert."; });
+lageSel.addEventListener("change", () => {
+  if (addrSearch.value.trim()) {
+    addrSearch.value = "";
+    hideSuggestions();
+    addrStatus.textContent =
+      "Lage wurde manuell geändert. Adressbezug entfernt.";
+    save();
+  }
+  calc();
+});
 versionSel.addEventListener("change", () => {
   const nextVersion = versionSel.value;
   save();
