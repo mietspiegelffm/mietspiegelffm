@@ -887,6 +887,8 @@ function createPDF(){
   pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 281, {align:"right"});
   pdf.setFont("helvetica","normal");
   pdf.setFontSize(8);
+  text("Projektseite:", margin, 276);
+  text("https://mietspiegelffm.github.io/mietspiegelffm/", margin, 279);
   text("Privates und inoffizielles Informationsangebot. Keine Gewähr. Keine Rechtsberatung.", margin, 288);
   text("Die Nutzung und Verwertung der Berechnung erfolgt auf eigene Verantwortung.", margin, 291);
   const safeWohnung = wohnung === "nicht angegeben" ? "Mietspiegel-Ergebnis" : wohnung.replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
@@ -911,6 +913,5 @@ function createPDF(){
       Die Nutzung erfolgt auf eigene Verantwortung.<br>
   </div>
 </footer>
-
 </body>
 </html>
