@@ -38,7 +38,7 @@ header {
   gap:14px;
 }
 .wappen {
-  width:120px;
+  width:220px;
   flex:none;
 }
 .wappen img {
@@ -245,14 +245,21 @@ button:hover {
 }
 
 .hidden{display:none!important;}
-.version-note{font-size:.86rem;color:var(--muted);margin-top:6px;}
+.version-note{
+  display:inline-block;
+  margin-top:3px;
+  color:rgba(255,255,255,.85);
+  font-size:.82rem;
+  font-weight:400;
+  letter-spacing:.02em;
+}
 .badge{display:inline-block;background:#f1f1f1;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:.82rem;color:#555;margin-left:6px;}
 </style>
 </head>
 <body>
 <header>
   <div class="wrap hero">
-    <div class="wappen"><img src="frankfurt-wappen.webp" alt="Frankfurter Wappen" loading="eager"></div>
+    <div class="wappen"><img src="pagelogo.webp" alt="Logo" loading="eager"></div>
     <div>
       <h1 id="mainTitle">Frankfurter Mietspiegel</h1>
       <div class="subtitle" id="subtitle">Ermittlung der ortsüblichen Vergleichsmiete – inoffiziell</div>
@@ -338,20 +345,20 @@ button:hover {
 </main>
 
 <script>
-const APP_VERSION = "0.90";
+const APP_VERSION = "0.91";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
-  ["Neubau 2018–2025",1.25], ["Gedämmtes Dach oder Bj. ≥ 1978",0.24], ["Gedämmte Außenwand",0.47],
-  ["Wärmeschutzverglasung",0.38], ["Freistehendes Einfamilienhaus",2.22], ["Garten ≥ 30 m²",0.85],
-  ["Deckenhöhe ≥ 2,61 m",0.21], ["Große Wohn-/Schlafräume",0.31], ["Gefangene Räume",-0.64],
-  ["Grundrissänderung",0.95], ["Fehlender Fußboden",-0.60], ["Hochwertiger Fußboden",0.64],
-  ["Hochwertiger Altbau",1.30], ["Auf-Putz-Leitungen",-0.27], ["Steigleitungen erneuert",0.37],
+  ["Neubau: Baujahr 2018 bis 2025",1.25], ["Gedämmtes Dach oder Fertigstellung ab 1978",0.24], ["Gedämmte Außenwand",0.47],
+  ["Wärmeschutz-Verglasung",0.38], ["Freistehendes Einfamilienhaus",2.22], ["Garten mindestens 30 m²",0.85],
+  ["Deckenhöhe 2,61 m oder höher",0.21], ["Große Wohn-/Schlafräume",0.31], ["Gefangene Räume",-0.64],
+  ["Grundrissänderung",0.95], ["Fehlender oder abschlagsfähiger Fußboden",-0.60], ["Besonders hochwertiger Fußboden",0.64],
+  ["Hochwertiger Altbau",1.30], ["Auf-Putz-Leitungen",-0.27], ["Erneuerung der Steigleitungen",0.37],
   ["Einfacher Heizungsstandard",-1.09], ["Nicht beheizbare Räume",-0.61], ["Bodentiefe oder raumhohe Fenster",0.29],
   ["Elektrisch betriebene Rollläden",0.61], ["Videogegensprechanlage",0.82], ["Aufzug",0.65],
   ["Küche",0.43], ["Neue Einbauküche",0.85], ["Mehrere Badezimmer",0.61], ["Mehrere Toiletten",0.24],
   ["Wandhängendes WC",0.19], ["Bad-Heizung",0.45], ["Hochwertige Dusche",0.95], ["Tageslichtbad",0.19],
-  ["Balkon/Freisitz",0.39], ["Tiefer Freisitz",0.38], ["Mehrere Freisitze",0.30]
+  ["Freisitz",0.39], ["Tiefer Freisitz",0.38], ["Mehrere Freisitze",0.30]
 ];
 
 const feats2024 = [
@@ -493,7 +500,7 @@ function baseRent2024(a, cls) {
 
 function featureIndex(name) { return feats.findIndex(f => f[0] === name); }
 function featureCheckbox(name) { const idx = featureIndex(name); return idx >= 0 ? document.getElementById("f" + idx) : null; }
-function getFeaturePairs() { return (currentVersion()==="2024" || currentVersion()==="2022") ? [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]] : [["Hochwertiger Altbau", "Hochwertiger Fußboden"]]; }
+function getFeaturePairs() { return (currentVersion()==="2024" || currentVersion()==="2022") ? [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]] : [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]]; }
 function updateMutualExclusions() {
   getFeaturePairs().forEach(([a,b]) => {
     const cbA = featureCheckbox(a), cbB = featureCheckbox(b);
@@ -512,6 +519,29 @@ function updateMutualExclusions() {
       if (!standard.checked) { newer.checked = false; newer.disabled = true; lbl.dataset.note = "Nur anwendbar mit Standard-Einbauküche"; }
       else { newer.disabled = false; delete lbl.dataset.note; }
     }
+
+    const glazing = [
+      featureCheckbox("Ein-Scheiben-Verglasung"),
+      featureCheckbox("2-Scheiben-Wärmeschutz-Verglasung"),
+      featureCheckbox("3-Scheiben-Wärmeschutz-Verglasung")
+    ].filter(Boolean);
+
+    const selected = glazing.find(cb => cb.checked);
+
+    glazing.forEach(cb => {
+      const label = cb.closest(".feat");
+      if (!!selected && cb !== selected) {
+        cb.disabled = true;
+        label.style.opacity = "0.5";
+        label.dataset.note = "Nicht kombinierbar mit der gewählten Verglasungsart";
+      } else {
+        cb.disabled = false;
+        label.style.opacity = "";
+        if (label.dataset.note === "Nicht kombinierbar mit der gewählten Verglasungsart") {
+          delete label.dataset.note;
+        }
+      }
+    });
   }
 }
 
