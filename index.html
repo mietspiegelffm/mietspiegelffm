@@ -346,7 +346,7 @@ button:hover {
   
 <hr style="border:0;border-top:1px solid #e5e5e5;margin:16px 0;">
 <details style="margin-top:8px">
-  <summary style="cursor:pointer;font-weight:600;color:#666;">✉️ Feedback, Anregungen</summary>
+  <summary style="cursor:pointer;font-weight:600;color:#666;">✉️ Feedback &amp Anregungen</summary>
   <form id="replyForm" style="margin-top:12px;display:grid;gap:10px">
     <input type="text" name="name" placeholder="Name" required
       style="width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;">
@@ -766,7 +766,11 @@ function calc() {
     <div class="row"><span>Zu-/Abschläge</span><b>${num(c.merkmaleSum)} €/m²</b></div>
     <div class="result-title">ORTSÜBLICHE VERGLEICHSMIETE</div>
     <div class="result-values"><div class="big">${num(c.pm2Shown)} €/m²</div><div class="big">${euro(c.orts)}</div></div>
-    <div class="result-box"><div class="result-title">MIETPREISBREMSE &amp; MIETSPIEGEL</div><div class="label">Zulässige Höchstmiete</div><div class="big">${euro(c.mpb)}</div><div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div><div class="big">${euro(c.spanHigh)}</div></div>`;
+    <div class="result-box"><div class="result-title">Mietpreisbremse &amp; Mietspiegel-Spanne</div>
+	<div class="label">Mietpreisbremse (+10 %)</div>
+	<div class="big">${euro(c.mpb)}</div>
+	<div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div>
+	<div class="big">${euro(c.spanHigh)}</div></div>`;
   document.getElementById("resultHint").textContent =
     c.ver==="2024" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." :
     c.ver==="2022" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
@@ -966,14 +970,17 @@ function createPDF(){
   y += 7; 
   text("Monatliche Vergleichsmiete (" + num(c.pm2Shown) + " €/m² × " + num(c.a) + " m²)", margin, y);
   text(euro(c.orts),pageW-margin, y, {align:"right"});
-  y += 15; 
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); 
-  text("Mietpreisbremse & Mietspiegel-Spanne", margin, y); 
-  y += 7; row("Zulässige Höchstmiete (+10 %)", euro(c.mpb), y); 
-  y += 7; row("Obere Mietspiegelspanne (+"+Math.round(c.spanPct*100)+" %)", euro(c.spanHigh), y); 
-  y += 15;
-  pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Merkmale (Zu- / Abschläge)", margin, y); y += 6; pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
-  if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+7; }
+  y += 12;
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12);
+  text("Zu-/Abschläge im Detail", margin, y);
+  y += 6;
+  pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
+  if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+10; }
+
+  pdf.setFont("helvetica","bold"); pdf.setFontSize(12);
+  text("Mietpreisbremse & Mietspiegel-Spanne", margin, y);
+  y += 7; row("Mietpreisbremse (+10 %)", euro(c.mpb), y);
+  y += 7; row("Obere Mietspiegelspanne (+"+Math.round(c.spanPct*100)+" %)", euro(c.spanHigh), y);
   pdf.setFont("helvetica","normal"); pdf.setFontSize(8); text("Erstellt am " + new Date().toLocaleDateString("de-DE"), pageW-margin, 281, {align:"right"});
   pdf.setFont("helvetica","normal");
   pdf.setFontSize(8);
@@ -983,7 +990,7 @@ function createPDF(){
   text("Privates und inoffizielles Informationsangebot. Keine Gewähr. Keine Rechtsberatung.", margin, 288);
   text("Die Nutzung und Verwertung der Berechnung erfolgt auf eigene Verantwortung.", margin, 291);
   const safeWohnung = wohnung === "nicht angegeben" ? "Mietspiegel-Ergebnis" : wohnung.replace(/[^a-zA-Z0-9ÄÖÜäöüß]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
-  pdf.save(safeWohnung + "_" + c.ver + "_v" + APP_VERSION + ".pdf");
+  pdf.save(safeWohnung + "_" + c.ver + ".pdf");
 }
 </script>
 
