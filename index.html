@@ -255,6 +255,8 @@ button:hover {
 }
 .badge{display:inline-block;background:#f1f1f1;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:.82rem;color:#555;margin-left:6px;}
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 <header>
@@ -341,11 +343,56 @@ button:hover {
     <p class="small" id="resultHint"></p>
     <button onclick="createPDF()">Drucken / PDF</button>
     <button onclick="copyShareLink()">🔗 Link speichern</button>
-  </aside>
+  
+<hr style="border:0;border-top:1px solid #e5e5e5;margin:16px 0;">
+<details style="margin-top:8px">
+  <summary style="cursor:pointer;font-weight:600;color:#666;">✉️ Feedback, Anregungen</summary>
+  <form id="replyForm" style="margin-top:12px;display:grid;gap:10px">
+    <input type="text" name="name" placeholder="Name" required
+      style="width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;">
+    <input type="email" name="email" placeholder="E‑Mail" required
+      style="width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;">
+    <textarea name="message" placeholder="Ihr Feedback, Hinweis oder Verbesserungsvorschlag" rows="4" required  
+      style="width:100%;padding:10px;border:1px solid #ccc;border-radius:10px;"></textarea>
+    <button type="submit">Senden</button>
+    <small id="replyStatus"></small>
+  </form>
+</details>
+
+<script>
+emailjs.init({ publicKey: "I6nuygTM3c180M1lk" });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("replyForm");
+  if (!form) return;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const status = document.getElementById("replyStatus");
+    status.textContent = "Wird gesendet...";
+    try {
+      await emailjs.sendForm(
+        "service_35bl3n1",
+        "template_vr4p6ui",
+        form
+      );
+
+      status.textContent = "Nachricht erfolgreich gesendet.";
+      form.reset();
+    } catch (err) {
+      status.textContent = "Fehler beim Versand.";
+      console.error(err);
+    }
+  });
+});
+</script>
+
+</aside>
 </main>
 
 <script>
-const APP_VERSION = "0.91";
+const APP_VERSION = "0.92";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
