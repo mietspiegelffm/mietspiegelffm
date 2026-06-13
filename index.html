@@ -254,6 +254,13 @@ button:hover {
   letter-spacing:.02em;
 }
 .badge{display:inline-block;background:#f1f1f1;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:.82rem;color:#555;margin-left:6px;}
+.compare-table{width:100%;border-collapse:collapse;font-size:.86rem;margin-top:8px;}
+.compare-table th,.compare-table td{border-bottom:1px solid var(--line);padding:7px 4px;text-align:right;vertical-align:top;}
+.compare-table th:first-child,.compare-table td:first-child{text-align:left;}
+.compare-table th{color:#555;font-weight:800;background:#fafafa;}
+.compare-settings{display:grid;gap:12px;}
+.compare-features{max-height:360px;overflow:auto;padding-right:4px;}
+.compare-muted{color:var(--muted);font-size:.86rem;line-height:1.45;}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -282,6 +289,7 @@ button:hover {
             <option value="2022">2022</option>
           </select>
           <div class="version-note" id="versionNote">Straßenregister / Lage 1–10.</div>
+          
         </div>
         <div>
           <label for="wohnung"><b>Wohnung</b></label>
@@ -312,6 +320,17 @@ button:hover {
           <label for="lage"><b>Lagekategorie</b></label>
           <select id="lage"></select>
         </div>
+        <div id="compareToggleBlock">
+          <label style="margin-top:24px">
+            <input type="checkbox" id="showComparison">
+            Vergleich 2024 / 2022 anzeigen
+          </label>
+          <div style="margin-top:6px;font-size:0.85rem;">
+            <button onclick="resetAllValues()" style="background:none;color:#666;border:0;padding:0;font-weight:400;text-decoration:underline;cursor:pointer;">
+              Alle Werte zurücksetzen
+            </button>
+          </div>
+        </div>
         <div id="wohnlage2024Block" class="hidden">
           <label for="wohnlage2024"><b id="wohnlageLabel">Wohnlage 2024</b></label>
           <select id="wohnlage2024">
@@ -334,6 +353,33 @@ button:hover {
         <span></span><span>Merkmal</span><span class="price">€/m²</span>
       </div>
       <div id="features" class="features"></div>
+    </div>
+
+    <div class="card hidden" id="compare202xCard">
+      <h2 style="margin-top:0">Vergleich 2024 / 2022</h2>
+      <p class="compare-muted">Diese Einstellungen gelten für den Vergleich in der 2026-Ansicht. Die Merkmale werden gemeinsam für 2024 und 2022 gespeichert.</p>
+      <div class="formgrid" style="margin-bottom:14px">
+        <div>
+          <label for="compareWohnlage"><b>Wohnlage für Vergleich</b></label>
+          <select id="compareWohnlage">
+            <option value="sehrGut">Sehr gute Wohnlage</option>
+            <option value="gehoben">Gehobene Wohnlage</option>
+            <option value="mittel" selected>Mittlere Wohnlage</option>
+            <option value="einfach">Einfache / sehr einfache Wohnlage</option>
+          </select>
+        </div>
+        <div>
+          <label class="feat" style="grid-template-columns:22px 1fr 70px;margin-top:28px;border-bottom:0">
+            <input type="checkbox" id="compareZentraleLage">
+            <span>Zentrale Lage</span>
+            <span class="price">+1,13<br><span class="small">+1,01</span></span>
+          </label>
+        </div>
+      </div>
+      <div class="features-header">
+        <span></span><span>Merkmal 2024 / 2022</span><span class="price">€/m²</span>
+      </div>
+      <div id="compareFeatures" class="features compare-features"></div>
     </div>
   </section>
 
@@ -392,7 +438,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </main>
 
 <script>
-const APP_VERSION = "0.92";
+const APP_VERSION = "0.99";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
@@ -502,6 +548,11 @@ const addrStatus = document.getElementById("addrStatus");
 const baualter2024 = document.getElementById("baualter2024");
 const wohnlage2024 = document.getElementById("wohnlage2024");
 const zentraleLage2024 = document.getElementById("zentraleLage2024");
+const compare202xCard = document.getElementById("compare202xCard");
+const compareWohnlage = document.getElementById("compareWohnlage");
+const compareZentraleLage = document.getElementById("compareZentraleLage");
+const compareFeatures = document.getElementById("compareFeatures");
+const showComparison = document.getElementById("showComparison");
 
 let feats = feats2026;
 let wohnlagen = {};
@@ -597,16 +648,200 @@ function renderFeatures(restoreChecks) {
   feats.forEach((f,i) => {
     const label = document.createElement("label");
     label.className = "feat";
-    label.innerHTML = `<input type="checkbox" id="f${i}"><span>${f[0]}</span><span class="price">${f[1].toFixed(2).replace(".",",")}</span>`;
+    label.innerHTML = `<input type="checkbox" id="f${i}" data-feature-name="${f[0].replace(/"/g, '&quot;')}"><span>${f[0]}</span><span class="price">${f[1].toFixed(2).replace(".",",")}</span>`;
     box.appendChild(label);
     const cb = label.querySelector("input");
     if (restoreChecks) {
       if (Array.isArray(restoreChecks)) cb.checked = !!restoreChecks[i];
       else cb.checked = !!restoreChecks[f[0]];
     }
-    cb.addEventListener("change", () => { updateMutualExclusions(); calc(); });
+    cb.addEventListener("change", () => { updateMutualExclusions(); syncCompareFromMain(); calc(); });
   });
   updateMutualExclusions();
+}
+
+
+function getStoredState() {
+  try { return JSON.parse(localStorage.getItem(storageKey()) || "{}"); }
+  catch(e) { return {}; }
+}
+function featureMapFromArray(arr) {
+  const m = {};
+  (arr || []).forEach((f,i) => { m[f[0]] = !!arr[i]; });
+  return m;
+}
+function mergeChecksByName(...sources) {
+  const out = {};
+  sources.forEach(src => {
+    if (!src) return;
+    if (Array.isArray(src)) {
+      feats2024.forEach((f,i) => { if (src[i]) out[f[0]] = true; });
+    } else {
+      Object.keys(src).forEach(k => { if (src[k]) out[k] = true; });
+    }
+  });
+  return out;
+}
+function collectChecksFrom(container, list) {
+  const checks = {};
+  list.forEach((f,i) => {
+    const cb = container?.querySelector(`[data-feature-name="${CSS.escape(f[0])}"]`);
+    checks[f[0]] = !!cb?.checked;
+  });
+  return checks;
+}
+function collectMainChecks() { return collectChecksFrom(box, feats); }
+function collectCompareChecks() { return collectChecksFrom(compareFeatures, feats2024); }
+function common202xChecksForSave() {
+  if (currentVersion() === "2024" || currentVersion() === "2022") return collectMainChecks();
+  if (compareFeatures && compareFeatures.children.length) return collectCompareChecks();
+  const state = getStoredState();
+  return mergeChecksByName(state.v202x?.checks, state.v2024?.checks, state.v2022?.checks);
+}
+function setCompareChecks(checks) {
+  const map = mergeChecksByName(checks);
+  feats2024.forEach(f => {
+    const cb = compareFeatures?.querySelector(`[data-feature-name="${CSS.escape(f[0])}"]`);
+    if (cb) cb.checked = !!map[f[0]];
+  });
+  updateCompareMutualExclusions();
+}
+function syncCompareFromMain() {
+  if (currentVersion() !== "2024" && currentVersion() !== "2022") return;
+  setCompareChecks(collectMainChecks());
+}
+function syncMainFromCompare() {
+  if (currentVersion() !== "2024" && currentVersion() !== "2022") return;
+  const map = collectCompareChecks();
+  feats.forEach(f => {
+    const cb = box?.querySelector(`[data-feature-name="${CSS.escape(f[0])}"]`);
+    if (cb) cb.checked = !!map[f[0]];
+  });
+  updateMutualExclusions();
+}
+function featurePairExclusionIn(container, a, b) {
+  const cbA = container?.querySelector(`[data-feature-name="${CSS.escape(a)}"]`);
+  const cbB = container?.querySelector(`[data-feature-name="${CSS.escape(b)}"]`);
+  if (!cbA || !cbB) return;
+  const labelA = cbA.closest(".feat"), labelB = cbB.closest(".feat");
+  if (cbA.checked) { cbB.checked = false; cbB.disabled = true; labelB.dataset.note = "Nicht kombinierbar mit " + a; }
+  else { cbB.disabled = false; delete labelB.dataset.note; }
+  if (cbB.checked) { cbA.checked = false; cbA.disabled = true; labelA.dataset.note = "Nicht kombinierbar mit " + b; }
+  else { cbA.disabled = false; delete labelA.dataset.note; }
+}
+function updateCompareMutualExclusions() {
+  featurePairExclusionIn(compareFeatures, "Hochwertiger Altbau", "Besonders hochwertiger Fußboden");
+  const standard = compareFeatures?.querySelector(`[data-feature-name="${CSS.escape("Standard-Einbauküche")}"]`);
+  const newer = compareFeatures?.querySelector(`[data-feature-name="${CSS.escape("Neuere Standard-Einbauküche")}"]`);
+  if (standard && newer) {
+    const lbl = newer.closest(".feat");
+    if (!standard.checked) { newer.checked = false; newer.disabled = true; lbl.dataset.note = "Nur anwendbar mit Standard-Einbauküche"; }
+    else { newer.disabled = false; delete lbl.dataset.note; }
+  }
+  const glazing = ["Ein-Scheiben-Verglasung", "2-Scheiben-Wärmeschutz-Verglasung", "3-Scheiben-Wärmeschutz-Verglasung"]
+    .map(name => compareFeatures?.querySelector(`[data-feature-name="${CSS.escape(name)}"]`)).filter(Boolean);
+  const selected = glazing.find(cb => cb.checked);
+  glazing.forEach(cb => {
+    const label = cb.closest(".feat");
+    if (selected && cb !== selected) {
+      cb.disabled = true; label.style.opacity = "0.5"; label.dataset.note = "Nicht kombinierbar mit der gewählten Verglasungsart";
+    } else {
+      cb.disabled = false; label.style.opacity = "";
+      if (label.dataset.note === "Nicht kombinierbar mit der gewählten Verglasungsart") delete label.dataset.note;
+    }
+  });
+}
+function renderCompareFeatures(restoreChecks) {
+  if (!compareFeatures) return;
+  compareFeatures.innerHTML = "";
+  const map = mergeChecksByName(restoreChecks);
+  feats2024.forEach((f,i) => {
+    const label = document.createElement("label");
+    label.className = "feat";
+    const v2022 = feats2022[i]?.[1] ?? 0;
+    label.innerHTML = `<input type="checkbox" data-feature-name="${f[0].replace(/"/g, '&quot;')}"><span>${f[0]}</span><span class="price">${num(f[1])}<br><span class="small">${num(v2022)}</span></span>`;
+    compareFeatures.appendChild(label);
+    const cb = label.querySelector("input");
+    cb.checked = !!map[f[0]];
+    cb.addEventListener("change", () => { updateCompareMutualExclusions(); syncMainFromCompare(); calc(); });
+  });
+  updateCompareMutualExclusions();
+}
+function selectedWohnlageKeyFromSelect(sel) {
+  const v = String(sel?.value ?? "0");
+  if (["sehrGut", "gehoben", "mittel", "einfach"].includes(v)) return v;
+  const n = parseDE(v);
+  if (n > 1) return "sehrGut";
+  if (n > 0) return "gehoben";
+  if (n < 0) return "einfach";
+  return "mittel";
+}
+function wohnlageValueByKey(ver, key) {
+  const vals = wohnlageValues[ver] || wohnlageValues["2024"];
+  return vals[key] ?? 0;
+}
+function wohnlageLabelByKey(key) {
+  return {sehrGut:"Sehr gute Wohnlage", gehoben:"Gehobene Wohnlage", mittel:"Mittlere Wohnlage", einfach:"Einfache / sehr einfache Wohnlage"}[key] || "Mittlere Wohnlage";
+}
+function featureSumForYear(year, checks) {
+  const list = year === "2022" ? feats2022 : feats2024;
+  let sum = 0;
+  list.forEach(f => { if (checks && checks[f[0]]) sum += f[1]; });
+  return round2(sum);
+}
+const baualtersklassen = [
+  ["bis1977", "bis 1977"],
+  ["1978_1994", "1978 bis 1994"],
+  ["1995_2009", "1995 bis 2009"],
+  ["2010_2021", "2010 bis 2021"]
+];
+function pctDiffToReference(value, reference) {
+  if (!reference || !isFinite(reference)) return NaN;
+  // Veränderung aus Sicht des alten Mietspiegels:
+  // 2026 niedriger als 2024/2022 = negativer Wert
+  return round2(((reference - value) / value) * 100);
+}
+function pctText(value) {
+  if (!isFinite(value)) return "";
+  return (value > 0 ? "+" : "") + num(value) + " %";
+}
+function comparison202x() {
+  const a = parseDE(area.value);
+  if (!a || a < 15) return {error:"Wohnfläche mindestens 15 m²"};
+  if (a > 160) return {error:"Vergleich 2024/2022 nur bis 160 m² möglich."};
+  const key = compareWohnlage?.value || "mittel";
+  const central = !!compareZentraleLage?.checked;
+  const checks = collectCompareChecks();
+  const reference2026 = calculation();
+  if (reference2026.error) return {error:reference2026.error};
+  const pm2026 = reference2026.pm2Shown;
+  const rows = baualtersklassen.map(([cls,label]) => {
+    const merkmale2024 = featureSumForYear("2024", checks);
+    const merkmale2022 = featureSumForYear("2022", checks);
+    const lage2024 = round2(wohnlageValueByKey("2024", key) + (central ? wohnlageValues["2024"].zentral : 0));
+    const lage2022 = round2(wohnlageValueByKey("2022", key) + (central ? wohnlageValues["2022"].zentral : 0));
+    const pm2024 = round2(baseRent2024(a, cls) + lage2024 + merkmale2024);
+    const pm2022 = round2(baseRent2022(a, cls) + lage2022 + merkmale2022);
+    const diff2024Pct = pctDiffToReference(pm2024, pm2026);
+    const diff2022Pct = pctDiffToReference(pm2022, pm2026);
+    return {cls,label,pm2024,pm2022,diff2024Pct,diff2022Pct};
+  });
+  return {rows, wohnlageKey:key, wohnlageLabel:wohnlageLabelByKey(key), central, pm2026};
+}
+function comparisonHtml() {
+  if (currentVersion() !== "2026" || !showComparison?.checked) return "";
+  const cmp = comparison202x();
+  if (cmp.error) return `<div class="result-box"><div class="result-title">Vergleich 2024 / 2022</div><p class="small">${cmp.error}</p></div>`;
+  const rows = cmp.rows.map(r => `
+    <tr>
+      <td>${r.label}</td>
+      <td><b>${num(r.pm2024)}</b><br><span class="small">${pctText(r.diff2024Pct)}</span></td>
+      <td><b>${num(r.pm2022)}</b><br><span class="small">${pctText(r.diff2022Pct)}</span></td>
+    </tr>`).join("");
+  return `<div class="result-box"><div class="result-title">Vergleich 2024 / 2022</div>
+    <p class="small">${cmp.wohnlageLabel}${cmp.central ? " + Zentrale Lage" : ""}; gleiche Merkmale für beide Jahre. Prozentwerte jeweils im Vergleich zu 2026.</p>
+    <table class="compare-table"><thead><tr><th>Baualtersklasse</th><th>2024<br>€/m² / zu 2026</th><th>2022<br>€/m² / zu 2026</th></tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
 }
 
 function normText(v) { return String(v || "").toLocaleLowerCase("de-DE").replace(/\s+/g, " ").trim(); }
@@ -647,24 +882,25 @@ function loadWohnlagen() {
   fetch("wohnlagen_compact.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); if(currentVersion()==="2026") addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
 }
 
-function collectChecks() {
-  const checks = {};
-  feats.forEach((f,i) => { checks[f[0]] = !!document.getElementById("f"+i)?.checked; });
-  return checks;
-}
+function collectChecks() { return collectMainChecks(); }
 function storageKey() { return "ffm_mietspiegel"; }
 function save() {
   if (suppressSave) return;
-  const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
+  const state = getStoredState();
   state.version = currentVersion();
   state.area = area.value;
   state.wohnung = document.getElementById("wohnung").value;
+  state.v202x = state.v202x || {};
+  state.v202x.checks = common202xChecksForSave();
+  state.v202x.compareWohnlage = compareWohnlage?.value || state.v202x.compareWohnlage || "mittel";
+  state.v202x.compareZentral = !!compareZentraleLage?.checked;
+  state.v202x.showComparison = !!showComparison?.checked;
   if (currentVersion()==="2026") {
     state.v2026 = {lage: lageSel.selectedIndex, address: addrSearch.value, checks: collectChecks()};
   } else if (currentVersion()==="2024") {
-    state.v2024 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked, checks: collectChecks()};
+    state.v2024 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked};
   } else {
-    state.v2022 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked, checks: collectChecks()};
+    state.v2022 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked};
   }
   localStorage.setItem(storageKey(), JSON.stringify(state));
 }
@@ -683,6 +919,7 @@ function applyVersion(ver, restoredChecks) {
   document.getElementById("lage2026Block").classList.toggle("hidden", is2024 || is2022);
   document.getElementById("baualter2024Block").classList.toggle("hidden", !(is2024 || is2022));
   document.getElementById("wohnlage2024Block").classList.toggle("hidden", !(is2024 || is2022));
+  compare202xCard?.classList.toggle("hidden", ver !== "2026" || !showComparison?.checked);
   if (is2024 || is2022) setWohnlageOptions(ver, oldWohnlage);
   feats = is2022 ? feats2022 : (is2024 ? feats2024 : feats2026);
   renderFeatures(restoredChecks || []);
@@ -692,22 +929,27 @@ function applyVersion(ver, restoredChecks) {
 function load() {
   suppressSave = true;
   try {
-    const s = JSON.parse(localStorage.getItem(storageKey()) || "{}");
+    const s = getStoredState();
     if (s.area) area.value = s.area;
     if (s.wohnung) document.getElementById("wohnung").value = s.wohnung;
+    const commonChecks = mergeChecksByName(s.v202x?.checks, s.v2024?.checks, s.v2022?.checks);
+    if (compareWohnlage) compareWohnlage.value = s.v202x?.compareWohnlage || "mittel";
+    if (compareZentraleLage) compareZentraleLage.checked = !!s.v202x?.compareZentral;
+    if (showComparison) showComparison.checked = !!s.v202x?.showComparison;
+    renderCompareFeatures(commonChecks);
     const ver = s.version || "2026";
     if (ver === "2024") {
       const v = s.v2024 || {};
       baualter2024.value = v.baualter || "bis1977";
       setWohnlageOptions("2024", v.wohnlage ?? "0");
       zentraleLage2024.checked = !!v.zentral;
-      applyVersion("2024", v.checks || []);
+      applyVersion("2024", commonChecks);
     } else if (ver === "2022") {
       const v = s.v2022 || {};
       baualter2024.value = v.baualter || "bis1977";
       setWohnlageOptions("2022", v.wohnlage ?? "0");
       zentraleLage2024.checked = !!v.zentral;
-      applyVersion("2022", v.checks || []);
+      applyVersion("2022", commonChecks);
     } else {
       if (s.v2026) {
         if (s.v2026.address) addrSearch.value = s.v2026.address;
@@ -716,10 +958,12 @@ function load() {
       applyVersion("2026", (s.v2026 && s.v2026.checks) || []);
     }
   } catch(e) {
+    renderCompareFeatures({});
     applyVersion("2026", []);
   }
   suppressSave = false;
 }
+
 
 function calculation() {
   updateMutualExclusions();
@@ -770,7 +1014,7 @@ function calc() {
 	<div class="label">Mietpreisbremse (+10 %)</div>
 	<div class="big">${euro(c.mpb)}</div>
 	<div class="label">Obere Mietspiegelspanne (+${Math.round(c.spanPct*100)} %)</div>
-	<div class="big">${euro(c.spanHigh)}</div></div>`;
+	<div class="big">${euro(c.spanHigh)}</div></div>${comparisonHtml()}`;
   document.getElementById("resultHint").textContent =
     c.ver==="2024" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." :
     c.ver==="2022" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
@@ -802,7 +1046,8 @@ lageSel.addEventListener("change", () => {
 versionSel.addEventListener("change", () => {
   const nextVersion = versionSel.value;
   save();
-  const state = JSON.parse(localStorage.getItem(storageKey()) || "{}");
+  const state = getStoredState();
+  const commonChecks = mergeChecksByName(state.v202x?.checks, state.v2024?.checks, state.v2022?.checks);
   suppressSave = true;
 
   if (nextVersion === "2024" || nextVersion === "2022") {
@@ -810,16 +1055,25 @@ versionSel.addEventListener("change", () => {
     baualter2024.value = v.baualter || "bis1977";
     setWohnlageOptions(nextVersion, v.wohnlage ?? "0");
     zentraleLage2024.checked = !!v.zentral;
-    applyVersion(nextVersion, v.checks || {});
+    applyVersion(nextVersion, commonChecks);
   } else {
     if (state.v2026) {
       addrSearch.value = state.v2026.address || "";
       if (Number.isInteger(state.v2026.lage)) lageSel.selectedIndex = state.v2026.lage;
     }
+    if (compareWohnlage) compareWohnlage.value = state.v202x?.compareWohnlage || "mittel";
+    if (compareZentraleLage) compareZentraleLage.checked = !!state.v202x?.compareZentral;
+    renderCompareFeatures(commonChecks);
     applyVersion("2026", (state.v2026 && state.v2026.checks) || {});
   }
 
   suppressSave = false;
+  calc();
+});
+compareWohnlage?.addEventListener("change", calc);
+compareZentraleLage?.addEventListener("change", calc);
+showComparison?.addEventListener("change", () => {
+  compare202xCard?.classList.toggle("hidden", !showComparison.checked);
   calc();
 });
 document.addEventListener("input", calc);
@@ -835,6 +1089,14 @@ function exportConfig() {
   if (currentVersion() === "2026") {
     cfg.lage = lageSel.selectedIndex;
     cfg.address = addrSearch.value;
+    cfg.compareWohnlage = compareWohnlage?.value || "mittel";
+    cfg.compareZentral = !!compareZentraleLage?.checked;
+    cfg.showComparison = !!showComparison?.checked;
+    cfg.compareFeatures = [];
+    feats2024.forEach((f,i)=>{
+      const cb = compareFeatures?.querySelector(`[data-feature-name="${CSS.escape(f[0])}"]`);
+      if (cb?.checked) cfg.compareFeatures.push(i);
+    });
   } else {
     cfg.baualter = baualter2024.value;
     cfg.wohnlage = wohnlage2024.value;
@@ -848,6 +1110,7 @@ function exportConfig() {
 
   return cfg;
 }
+
 
 function generateShareLink() {
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(exportConfig()))));
@@ -867,8 +1130,18 @@ function importConfigFromUrl() {
     const cfg = JSON.parse(decodeURIComponent(escape(atob(params.get("cfg")))));
     suppressSave = true;
 
+    const commonChecks = {};
+    if (Array.isArray(cfg.compareFeatures)) feats2024.forEach((f,i)=>{ if(cfg.compareFeatures.includes(i)) commonChecks[f[0]] = true; });
+    if (!Object.keys(commonChecks).length && Array.isArray(cfg.features) && (cfg.version === "2024" || cfg.version === "2022")) {
+      feats2024.forEach((f,i)=>{ if(cfg.features.includes(i)) commonChecks[f[0]] = true; });
+    }
+    renderCompareFeatures(commonChecks);
+    if (compareWohnlage) compareWohnlage.value = cfg.compareWohnlage || "mittel";
+    if (compareZentraleLage) compareZentraleLage.checked = !!cfg.compareZentral;
+    if (showComparison) showComparison.checked = !!cfg.showComparison;
+
     if (cfg.version === "2024" || cfg.version === "2022") {
-      applyVersion(cfg.version, []);
+      applyVersion(cfg.version, commonChecks);
       baualter2024.value = cfg.baualter || "bis1977";
       setWohnlageOptions(cfg.version, cfg.wohnlage || "0");
       zentraleLage2024.checked = !!cfg.zentral;
@@ -887,6 +1160,7 @@ function importConfigFromUrl() {
     });
 
     updateMutualExclusions();
+    updateCompareMutualExclusions();
     suppressSave = false;
     calc();
     return true;
@@ -896,8 +1170,16 @@ function importConfigFromUrl() {
   }
 }
 
+
 load();
 if(!importConfigFromUrl()){ loadWohnlagen(); calc(); } else { loadWohnlagen(); }
+
+function resetAllValues() {
+  if (!confirm("Alle gespeicherten Eingaben und Einstellungen wirklich zurücksetzen?")) return;
+  localStorage.removeItem(storageKey());
+  location.href = location.pathname;
+}
+
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
