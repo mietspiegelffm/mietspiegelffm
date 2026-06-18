@@ -438,7 +438,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </main>
 
 <script>
-const APP_VERSION = "0.99";
+const APP_VERSION = "1.00";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
@@ -847,6 +847,45 @@ function comparisonHtml() {
 function normText(v) { return String(v || "").toLocaleLowerCase("de-DE").replace(/\s+/g, " ").trim(); }
 function normNr(v) { return String(v || "").toLocaleLowerCase("de-DE").replace(/\s+/g, "").replace(/\./g, "").trim(); }
 function splitAddressQuery(q) { const s = String(q || "").trim().replace(/\s+/g, " "); const m = s.match(/^(.*?)(?:\s+)(\d+\s*[a-zA-Z]?)$/); return !m ? {street:s, nr:""} : {street:m[1].trim(), nr:normNr(m[2])}; }
+function wohnlageKeyFromOldClass(cls) {
+  const n = Number(cls);
+  if (n === 1 || n === 2) return "einfach";
+  if (n === 3) return "mittel";
+  if (n === 4) return "gehoben";
+  if (n === 5) return "sehrGut";
+  return "mittel";
+}
+function wohnlageValueForOldClass(ver, cls) {
+  return String(wohnlageValueByKey(ver, wohnlageKeyFromOldClass(cls)));
+}
+function lageFromWohnlagenEntry(entry) {
+  return Array.isArray(entry) ? Number(entry[0]) : Number(entry);
+}
+function centralFromWohnlagenEntry(entry) {
+  return Array.isArray(entry) ? Number(entry[3]) === 1 : false;
+}
+function oldClassFromWohnlagenEntry(entry) {
+  return Array.isArray(entry) ? Number(entry[4]) : 3;
+}
+function applyAddressWohnlagen(entry) {
+  const central = centralFromWohnlagenEntry(entry);
+  const oldClass = oldClassFromWohnlagenEntry(entry);
+  const key = wohnlageKeyFromOldClass(oldClass);
+  if (compareWohnlage) compareWohnlage.value = key;
+  if (compareZentraleLage) compareZentraleLage.checked = central;
+
+  const state = getStoredState();
+  state.v2024 = state.v2024 || {};
+  state.v2022 = state.v2022 || {};
+  state.v2024.wohnlage = wohnlageValueForOldClass("2024", oldClass);
+  state.v2024.zentral = central;
+  state.v2022.wohnlage = wohnlageValueForOldClass("2022", oldClass);
+  state.v2022.zentral = central;
+  localStorage.setItem(storageKey(), JSON.stringify(state));
+
+  setWohnlageOptions("2024", state.v2024.wohnlage);
+  if (zentraleLage2024) zentraleLage2024.checked = central;
+}
 function setLageKategorie(kat, sourceText) { const idx = Math.max(1, Math.min(10, Number(kat))) - 1; lageSel.selectedIndex = idx; if (sourceText) addrStatus.innerHTML = sourceText; calc(); }
 function hideSuggestions() { addrSuggest.style.display = "none"; addrSuggest.innerHTML = ""; suggestionItems = []; activeSuggestion = -1; }
 function renderSuggestions(items) {
@@ -860,7 +899,15 @@ function renderSuggestions(items) {
   });
   addrSuggest.style.display = "block";
 }
-function chooseSuggestion(idx) { const it = suggestionItems[idx]; if (!it) return; addrSearch.value = `${it.street} ${it.nr}`; hideSuggestions(); setLageKategorie(it.lage, `Gewählte Adresse: <b>${it.street} ${it.nr}</b> → <b>Lage ${it.lage}</b>. Manuelle Änderung bleibt möglich.`); save(); }
+function chooseSuggestion(idx) {
+  const it = suggestionItems[idx];
+  if (!it) return;
+  addrSearch.value = `${it.street} ${it.nr}`;
+  hideSuggestions();
+  applyAddressWohnlagen(it.entry);
+  setLageKategorie(it.lage, `Gewählte Adresse: <b>${it.street} ${it.nr}</b> → <b>Lage ${it.lage}</b>. Manuelle Änderung bleibt möglich.`);
+  save();
+}
 function updateAddressSuggestions() {
   if (currentVersion() !== "2026") return hideSuggestions();
   if (!streetNames.length) { addrStatus.textContent = "Adressdaten werden geladen …"; return; }
@@ -872,14 +919,18 @@ function updateAddressSuggestions() {
   for (const item of scoredStreets) {
     const nums = Object.keys(wohnlagen[item.street] || {});
     const matchedNums = qNr ? nums.filter(n => normNr(n).startsWith(qNr)).slice(0, 8) : nums.slice(0, 4);
-    for (const nr of matchedNums) { candidates.push({street:item.street, nr, lage:wohnlagen[item.street][nr]}); if (candidates.length >= 24) break; }
+    for (const nr of matchedNums) {
+      const entry = wohnlagen[item.street][nr];
+      candidates.push({street:item.street, nr, lage:lageFromWohnlagenEntry(entry), entry});
+      if (candidates.length >= 24) break;
+    }
     if (candidates.length >= 24) break;
   }
   if (!candidates.length) { hideSuggestions(); addrStatus.innerHTML = '<span class="error">Keine Adresse gefunden. Lage kann weiterhin manuell gewählt werden.</span>'; return; }
   addrStatus.textContent = "Vorschlag auswählen oder Lage manuell einstellen."; renderSuggestions(candidates);
 }
 function loadWohnlagen() {
-  fetch("wohnlagen_compact.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); if(currentVersion()==="2026") addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
+  fetch("wohnlagen_geocodiert.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); if(currentVersion()==="2026") addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
 }
 
 function collectChecks() { return collectMainChecks(); }
