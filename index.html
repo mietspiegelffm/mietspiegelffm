@@ -160,6 +160,11 @@ input[type=number], input[type=text], select {
   font-size:.86rem;
   color:var(--muted);
 }
+.viewer-map-btn {
+  margin-top:8px;
+  padding:9px 12px;
+  font-size:.92rem;
+}
 .error {
   color:var(--red);
   font-weight:700;
@@ -299,6 +304,15 @@ button:hover {
           <label for="area"><b>Wohnfläche</b> in m²</label>
           <input id="area" type="text" inputmode="decimal" value="" min="15" max="234" step="0.01">
         </div>
+        <div id="addrBlock">
+          <label for="addrSearch"><b>Adresse suchen</b> <span class="small">(optional)</span></label>
+          <div class="addr-wrap">
+            <input id="addrSearch" type="text" autocomplete="off" placeholder="z. B. Adalbertstraße 12a">
+            <div id="addrSuggest" class="suggestions"></div>
+          </div>
+          <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
+          <button type="button" id="wohnlagenViewerBtn" class="viewer-map-btn">📍 Wohnlage in Karte anzeigen</button>
+        </div>
         <div id="baualter2024Block" class="hidden">
           <label for="baualter2024"><b>Baualtersklasse</b></label>
           <select id="baualter2024">
@@ -307,14 +321,6 @@ button:hover {
             <option value="1995_2009">1995 bis 2009</option>
             <option value="2010_2021">2010 bis 2021</option>
           </select>
-        </div>
-        <div id="addrBlock">
-          <label for="addrSearch"><b>Adresse suchen</b> <span class="small">(optional)</span></label>
-          <div class="addr-wrap">
-            <input id="addrSearch" type="text" autocomplete="off" placeholder="z. B. Adalbertstraße 12a">
-            <div id="addrSuggest" class="suggestions"></div>
-          </div>
-          <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
         </div>
         <div id="lage2026Block">
           <label for="lage"><b>Lagekategorie</b></label>
@@ -438,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </main>
 
 <script>
-const APP_VERSION = "1.00";
+const APP_VERSION = "2.00";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
@@ -559,6 +565,7 @@ let wohnlagen = {};
 let streetNames = [];
 let suggestionItems = [];
 let activeSuggestion = -1;
+let selectedViewerAddress = null;
 let suppressSave = false;
 let activeVersion = "2026";
 
@@ -783,6 +790,12 @@ function wohnlageValueByKey(ver, key) {
 function wohnlageLabelByKey(key) {
   return {sehrGut:"Sehr gute Wohnlage", gehoben:"Gehobene Wohnlage", mittel:"Mittlere Wohnlage", einfach:"Einfache / sehr einfache Wohnlage"}[key] || "Mittlere Wohnlage";
 }
+function suggestionWohnlageLabel(it) {
+  if (currentVersion() === "2026") return `Lage ${it.lage}`;
+  const key = wohnlageKeyFromOldClass(oldClassFromWohnlagenEntry(it.entry));
+  const label = wohnlageLabelByKey(key);
+  return centralFromWohnlagenEntry(it.entry) ? `${label} / zentral` : label;
+}
 function featureSumForYear(year, checks) {
   const list = year === "2022" ? feats2022 : feats2024;
   let sum = 0;
@@ -883,7 +896,9 @@ function applyAddressWohnlagen(entry) {
   state.v2022.zentral = central;
   localStorage.setItem(storageKey(), JSON.stringify(state));
 
-  setWohnlageOptions("2024", state.v2024.wohnlage);
+  const ver = currentVersion();
+  if (ver === "2022") setWohnlageOptions("2022", state.v2022.wohnlage);
+  else setWohnlageOptions("2024", state.v2024.wohnlage);
   if (zentraleLage2024) zentraleLage2024.checked = central;
 }
 function setLageKategorie(kat, sourceText) { const idx = Math.max(1, Math.min(10, Number(kat))) - 1; lageSel.selectedIndex = idx; if (sourceText) addrStatus.innerHTML = sourceText; calc(); }
@@ -893,7 +908,7 @@ function renderSuggestions(items) {
   if (!items.length) return hideSuggestions();
   items.forEach((it, idx) => {
     const div = document.createElement("div"); div.className = "suggestion";
-    div.innerHTML = `${it.street} ${it.nr} <b>→ Lage ${it.lage}</b>`;
+    div.innerHTML = `${it.street} ${it.nr} <b>→ ${suggestionWohnlageLabel(it)}</b>`;
     div.addEventListener("mousedown", e => { e.preventDefault(); chooseSuggestion(idx); });
     addrSuggest.appendChild(div);
   });
@@ -905,11 +920,15 @@ function chooseSuggestion(idx) {
   addrSearch.value = `${it.street} ${it.nr}`;
   hideSuggestions();
   applyAddressWohnlagen(it.entry);
-  setLageKategorie(it.lage, `Gewählte Adresse: <b>${it.street} ${it.nr}</b> → <b>Lage ${it.lage}</b>. Manuelle Änderung bleibt möglich.`);
+  setLageKategorie(it.lage);
+  addrStatus.textContent = "";
   save();
+  selectedViewerAddress = {
+    street: it.street,
+    house: it.nr
+  };
 }
 function updateAddressSuggestions() {
-  if (currentVersion() !== "2026") return hideSuggestions();
   if (!streetNames.length) { addrStatus.textContent = "Adressdaten werden geladen …"; return; }
   const raw = addrSearch.value.trim();
   if (raw.length < 2) { hideSuggestions(); addrStatus.textContent = "Adresse wählen oder Lage manuell einstellen."; return; }
@@ -930,7 +949,7 @@ function updateAddressSuggestions() {
   addrStatus.textContent = "Vorschlag auswählen oder Lage manuell einstellen."; renderSuggestions(candidates);
 }
 function loadWohnlagen() {
-  fetch("wohnlagen_geocodiert.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); if(currentVersion()==="2026") addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
+  fetch("wohnlagen_geocodiert.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
 }
 
 function collectChecks() { return collectMainChecks(); }
@@ -966,8 +985,9 @@ function applyVersion(ver, restoredChecks) {
   document.getElementById("versionNote").textContent = (is2024 || is2022)
     ? "Baualtersklasse, Wohnlage und zentrale Lage."
     : "Straßenregister / Lage 1–10.";
-  document.getElementById("addrBlock").classList.toggle("hidden", is2024 || is2022);
+  document.getElementById("addrBlock").classList.remove("hidden");
   document.getElementById("lage2026Block").classList.toggle("hidden", is2024 || is2022);
+  document.getElementById("compareToggleBlock").classList.toggle("hidden", is2024 || is2022);
   document.getElementById("baualter2024Block").classList.toggle("hidden", !(is2024 || is2022));
   document.getElementById("wohnlage2024Block").classList.toggle("hidden", !(is2024 || is2022));
   compare202xCard?.classList.toggle("hidden", ver !== "2026" || !showComparison?.checked);
@@ -975,7 +995,7 @@ function applyVersion(ver, restoredChecks) {
   feats = is2022 ? feats2022 : (is2024 ? feats2024 : feats2026);
   renderFeatures(restoredChecks || []);
   hideSuggestions();
-  if (!is2024 && !is2022) updateAddressSuggestions();
+  updateAddressSuggestions();
 }
 function load() {
   suppressSave = true;
@@ -1071,6 +1091,21 @@ function calc() {
     c.ver==="2022" ? "Basiswert über lineare Interpolation nach Tabelle 1; Tabellenpunkte centgenau." : "";
   save();
 }
+
+function openWohnlagenViewer() {
+  if (!selectedViewerAddress) return;
+
+  window.open(
+    "viewer.html?street=" +
+      encodeURIComponent(selectedViewerAddress.street) +
+      "&house=" +
+      encodeURIComponent(selectedViewerAddress.house),
+    "_blank"
+  );
+}
+
+const wohnlagenViewerBtn = document.getElementById("wohnlagenViewerBtn");
+if (wohnlagenViewerBtn) wohnlagenViewerBtn.addEventListener("click", openWohnlagenViewer);
 
 addrSearch.addEventListener("input", updateAddressSuggestions);
 addrSearch.addEventListener("focus", updateAddressSuggestions);

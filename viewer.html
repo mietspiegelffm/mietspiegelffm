@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Frankfurt Wohnlagen</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #17202a; font-size: 13px; }
+#sidebar { position: absolute; z-index: 1000; left: 0; top: 0; bottom: 0; width: 286px; overflow: auto; background: #fff; border-right: 1px solid #ccd1d1; padding: 10px; box-shadow: 0 0 18px rgba(0,0,0,.16); }
+#map { position: absolute; left: 286px; right: 0; top: 0; bottom: 0; }
+h1 { font-size: 17px; margin: 0 0 8px; line-height: 1.2; }
+h2 { font-size: 13px; margin: 10px 0 6px; border-top: 1px solid #e5e8e8; padding-top: 9px; line-height: 1.2; }
+section:first-of-type h2 { border-top: 0; padding-top: 0; }
+button, input, select { font: inherit; }
+button { border: 1px solid #adb5bd; border-radius: 5px; padding: 5px 7px; background: #f8f9fa; cursor: pointer; white-space: nowrap; }
+button:hover { background: #e9ecef; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.primary { color: #fff; background: #155eef; border-color: #155eef; width: 100%; margin-top: 6px; }
+input[type="search"] { width: 100%; min-width: 0; border: 1px solid #adb5bd; border-radius: 5px; padding: 5px 6px; }
+input[type="number"], select { width: 100%; border: 1px solid #adb5bd; border-radius: 5px; padding: 5px 6px; margin: 3px 0 6px; }
+label { line-height: 1.25; }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.checks label { display: block; white-space: nowrap; }
+.checks.vertical { display: block; }
+.checks.vertical label { display: block; margin: 4px 0; }
+.zentral-in-box { margin-top: 9px; padding-top: 7px; border-top: 1px solid #eef0f2; }
+.standalone-check { display: block; margin-top: 7px; }
+.inline-check { white-space: nowrap; margin-top: 8px; }
+.section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.section-head h2 { flex: 1; }
+.row { display: flex; align-items: center; gap: 6px; }
+.row.gap { gap: 7px; }
+.row.right { justify-content: flex-end; }
+.search-row button { flex: 0 0 auto; }
+.hint { color: #5d6d7e; font-size: 11px; margin-top: 5px; }
+.notice { background: #eef4ff; border: 1px solid #c8dcff; border-radius: 5px; padding: 6px; font-size: 12px; }
+dl { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; margin: 0; font-size: 12px; }
+dt { color: #34495e; } dd { margin: 0; font-weight: 700; text-align: right; }
+.modal.hidden { display: none; }
+.modal { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+.modalCard { width: min(430px, 92vw); background: #fff; border-radius: 10px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.28); }
+fieldset { border: 1px solid #d5dbdb; border-radius: 8px; margin: 10px 0; padding: 10px; }
+fieldset label { display: block; margin: 5px 0; }
+
+.lage-legend {
+  background: rgba(255,255,255,.94);
+  border: 1px solid #ccd1d1;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.18);
+  padding: 10px 12px;
+  line-height: 1.35;
+  font-size: 12px;
+}
+.lage-legend strong { display: block; margin-bottom: 6px; }
+.lage-legend div { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.lage-legend span { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
+
+.bulk-zentral-checks { display: block; margin: 6px 0 8px; }
+.bulk-zentral-checks label { display: block; margin: 4px 0; }
+#addressInfo dl { margin-top: 0; }
+
+.edit-marker {
+  color: #d00000;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  text-shadow: 0 0 4px white, 0 0 8px white;
+}
+
+.edit-info {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1200;
+  background: rgba(208, 0, 0, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0,0,0,.25);
+}
+
+.unsaved-info {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 1200;
+  background: rgba(255, 140, 0, 0.95);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(0,0,0,.25);
+}
+
+.edit-info.hidden,
+.unsaved-info.hidden {
+  display: none;
+}
+
+  </style>
+</head>
+<body>
+  <aside id="sidebar">
+    <h1>Wohnlagen Frankfurt a.M.</h1>
+    <div id="loadStatus" class="notice">Lade Daten …</div>
+
+    <section>
+      <h2>Neue Wohnlagen</h2>
+      <div id="lageFilter" class="checks"></div>
+      <label class="standalone-check"><input id="showOpenOnly" type="checkbox" /> nicht bearbeitete Adressen</label>
+    </section>
+
+    <section>
+      <h2>Alte Wohnlagen</h2>
+      <label class="standalone-check"><input id="overlayToggle" type="checkbox" /> anzeigen</label>
+      <div id="alteLageFilter" class="checks"></div>
+      <div id="zentralFilter" class="checks vertical zentral-in-box"></div>
+      <label class="standalone-check"><input id="editModeToggle" type="checkbox" /> Bearbeiten aktivieren</label>
+    </section>
+
+    <section>
+      <h2>Adresssuche</h2>
+      <div class="row search-row">
+        <input id="searchInput" type="search" placeholder="Adresse eingeben" />
+        <button id="searchBtn" type="button">Suchen</button>
+      </div>
+      <div id="searchResult" class="hint"></div>
+    </section>
+
+    <section>
+      <h2>Adressinformation</h2>
+      <div id="addressInfo" class="notice">Keine Adresse ausgewählt.</div>
+    </section>
+
+    <section id="selectionSection" hidden>
+      <h2>Auswahl / Massenbearbeitung</h2>
+      <div id="selectionInfo" class="notice">Keine Auswahl</div>
+      <div class="bulk-zentral-checks">
+        <label><input id="bulkZentralUnset" type="checkbox" /> Zentral = nicht zugewiesen</label>
+        <label><input id="bulkZentral" type="checkbox" /> Zentral = Ja</label>
+        <label><input id="bulkZentralNo" type="checkbox" /> Zentral = Nein</label>
+      </div>
+      <label>Alte Wohnlage</label>
+      <select id="bulkAlteLage">
+        <option value="">nicht ändern</option>
+        <option value="0">0 offen</option>
+        <option value="1">1 sehr einfach</option>
+        <option value="2">2 einfach</option>
+        <option value="3">3 mittel</option>
+        <option value="4">4 gehoben</option>
+        <option value="5">5 sehr gut</option>
+      </select>
+      <button id="applyBulkBtn" type="button">Auf Auswahl anwenden</button>
+      <p class="hint">Polygon oder Rechteck oben links in der Karte zeichnen. Das Polygon dient als Lasso-Auswahl.</p>
+    </section>
+
+    <section id="editSection" hidden>
+      <h2>Bearbeitung</h2>
+      <div class="row gap">
+        <button id="undoBtn" type="button" disabled>↶ Rückgängig</button>
+        <button id="redoBtn" type="button" disabled>↷ Wiederholen</button>
+      </div>
+      <button id="exportBtn" class="primary" type="button">💾 JSON exportieren</button>
+    </section>
+
+    <section>
+      <h2>Statistik</h2>
+      <dl id="stats"></dl>
+    </section>
+  </aside>
+
+  <main id="map"></main>
+
+  <div id="editorModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modalCard">
+      <h2 id="modalTitle">Adresse bearbeiten</h2>
+      <p id="modalNeueLage"></p>
+      <fieldset>
+        <legend>Zentral</legend>
+        <label><input type="radio" name="zentral" value="null"> nicht zugewiesen</label>
+        <label><input type="radio" name="zentral" value="0"> Nein</label>
+        <label><input type="radio" name="zentral" value="1"> Ja</label>
+      </fieldset>
+      <fieldset>
+        <legend>Alte Wohnlage</legend>
+        <label><input type="radio" name="alte_lage" value="0"> 0 offen</label>
+        <label><input type="radio" name="alte_lage" value="1"> 1 sehr einfach</label>
+        <label><input type="radio" name="alte_lage" value="2"> 2 einfach</label>
+        <label><input type="radio" name="alte_lage" value="3"> 3 mittel</label>
+        <label><input type="radio" name="alte_lage" value="4"> 4 gehoben</label>
+        <label><input type="radio" name="alte_lage" value="5"> 5 sehr gut</label>
+      </fieldset>
+      <div class="row gap right">
+        <button id="cancelEditBtn" type="button">Abbrechen</button>
+        <button id="saveEditBtn" class="primary" type="button">Übernehmen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/proj4@2.11.0/dist/proj4.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script>
+'use strict';
+
+proj4.defs('EPSG:25832', '+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs');
+const WGS84 = 'EPSG:4326';
+const DATA_URL = 'wohnlagen_geocodiert.json';
+
+const params = new URLSearchParams(window.location.search);
+const jumpAddress = {
+  street: params.get('street'),
+  house: params.get('house')
+};
+
+const state = {
+  raw: null,
+  points: [],
+  byKey: new Map(),
+  layerByKey: new Map(),
+  selectedKeys: new Set(),
+  activeFilters: new Set([1,2,3,4,5,6,7,8,9,10]),
+  alteLageFilters: new Set([0, 1, 2, 3, 4, 5]),
+  zentralFilters: new Set(['null', '0', '1']),
+  currentEditKey: null,
+  highlightLayer: null,
+  dragMarker: null,
+  hasChanges: false,
+  undoStack: [],
+  redoStack: [],
+  showOpenOnly: false,
+  editMode: false
+};
+
+const lageColors = {
+  1: '#000000', // Schwarz
+  2: '#8A8A8A', // deutliches Mittelgrau
+  3: '#6A00A8', // Violett
+  4: '#1D6FF2', // Blau
+  5: '#00B5E2', // Cyan
+  6: '#00A651', // Grün
+  7: '#7FD000', // Gelbgrün
+  8: '#D9A400', // Gold
+  9: '#FF6B00', // Orange
+  10: '#C40000' // Dunkelrot
+};
+
+
+const map = L.map('map', { preferCanvas: true, minZoom: 11, maxZoom: 18 }).setView([50.1109, 8.6821], 12);
+const canvasRenderer = L.canvas({ padding: 0.5 });
+L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  {
+    minZoom: 11,
+    maxZoom: 18,
+    opacity: 1.0,	
+    attribution: '&copy; OpenStreetMap-Mitwirkende'
+  }
+).addTo(map);
+
+
+const pointsLayer = L.layerGroup().addTo(map);
+const drawnItems = new L.FeatureGroup();
+const drawControl = new L.Control.Draw({
+  edit: { featureGroup: drawnItems, edit: false },
+  draw: { polyline: false, circle: false, circlemarker: false, marker: false, polygon: true, rectangle: true }
+});
+const wohnlagenLayer = L.tileLayer(
+  "assets/{z}/{x}/{y}.png",
+  {
+    minZoom: 11,
+    maxZoom: 18,
+	maxNativeZoom: 16,
+    tms: false,
+    opacity: 0.5
+  }
+);
+
+const editInfo = document.createElement('div');
+editInfo.id = 'editInfo';
+editInfo.className = 'edit-info hidden';
+editInfo.innerHTML = '✏️ Koordinaten-Bearbeitung aktiv<br>Punkt anklicken und verschieben';
+document.body.appendChild(editInfo);
+
+const unsavedInfo = document.createElement('div');
+unsavedInfo.id = 'unsavedInfo';
+unsavedInfo.className = 'unsaved-info hidden';
+unsavedInfo.innerHTML = '💾 Änderungen vorhanden<br>JSON noch nicht exportiert';
+document.body.appendChild(unsavedInfo);
+
+function normalize(s) { return String(s || '').toLowerCase().replace(/straße/g, 'strasse').replace(/str\./g, 'strasse').replace(/\s+/g, ' ').trim(); }
+function keyOf(street, house) { return `${street}|||${house}`; }
+function fmt(n) { return Number(n).toLocaleString('de-DE'); }
+function parseZentral(value) {
+  return value === undefined || value === null || value === '' ? null : Number(value);
+}
+function zentralFilterKey(value) { return value === null ? 'null' : String(value); }
+function zentralLabel(value) { return value === null ? 'nicht zugewiesen' : (Number(value) === 1 ? 'zentral' : 'nicht zentral'); }
+function alteLageLabel(value) {
+  return ({ 0: 'nicht zugewiesen', 1: 'sehr einfach', 2: 'einfach', 3: 'mittel', 4: 'gehoben', 5: 'sehr gut' })[Number(value)] ?? 'nicht zugewiesen';
+}
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
+}
+function showAddressInfo(p) {
+  const box = document.getElementById('addressInfo');
+  if (!box || !p) return;
+  box.innerHTML = `<dl>
+    <dt>Adresse</dt><dd>${escapeHtml(p.street)} ${escapeHtml(p.house)}</dd>
+    <dt>Neue Lage</dt><dd>${escapeHtml(p.neue_lage)}</dd>
+    <dt>X (EPSG:25832)</dt><dd>${Number(p.x).toFixed(3)}</dd>
+    <dt>Y (EPSG:25832)</dt><dd>${Number(p.y).toFixed(3)}</dd>
+    <dt>Zentral</dt><dd>${escapeHtml(zentralLabel(p.zentral))}</dd>
+    <dt>Alte Wohnlage</dt><dd>${escapeHtml(alteLageLabel(p.alte_lage))}</dd>
+  </dl>`;
+}
+
+function setHasChanges(value) {
+  state.hasChanges = Boolean(value);
+  const unsavedInfo = document.getElementById('unsavedInfo');
+  if (unsavedInfo) unsavedInfo.classList.toggle('hidden', !state.hasChanges);
+}
+
+function removeCoordinateEditMarker() {
+  if (state.dragMarker) {
+    map.removeLayer(state.dragMarker);
+    state.dragMarker = null;
+  }
+}
+
+function updatePointCoords(p, x, y) {
+  const roundedX = Number(x.toFixed(3));
+  const roundedY = Number(y.toFixed(3));
+  const [lon, lat] = proj4('EPSG:25832', WGS84, [roundedX, roundedY]);
+  p.x = roundedX;
+  p.y = roundedY;
+  p.lon = lon;
+  p.lat = lat;
+  p.arr[1] = roundedX;
+  p.arr[2] = roundedY;
+}
+
+function startCoordinateEdit(p) {
+  if (!state.editMode || !p) return;
+
+  removeCoordinateEditMarker();
+  showAddressInfo(p);
+  map.setView([p.lat, p.lon], 18, { animate: true });
+
+  const editIcon = L.divIcon({
+    className: 'edit-marker',
+    html: '✛',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+
+  const marker = L.marker([p.lat, p.lon], {
+    draggable: true,
+    icon: editIcon,
+    autoPan: true
+  }).addTo(map);
+  state.dragMarker = marker;
+
+  marker.on('drag', e => {
+    const pos = e.target.getLatLng();
+    const [x, y] = proj4(WGS84, 'EPSG:25832', [pos.lng, pos.lat]);
+    p.x = x;
+    p.y = y;
+    showAddressInfo(p);
+  });
+
+  marker.on('dragend', e => {
+    const pos = e.target.getLatLng();
+    const [x, y] = proj4(WGS84, 'EPSG:25832', [pos.lng, pos.lat]);
+    const from = { x: Number(p.arr[1]), y: Number(p.arr[2]) };
+    const to = { x: Number(x.toFixed(3)), y: Number(y.toFixed(3)) };
+
+    updatePointCoords(p, to.x, to.y);
+    marker.setLatLng([p.lat, p.lon]);
+
+    if (from.x !== to.x || from.y !== to.y) {
+      state.undoStack.push([{ type: 'move', key: p.key, from, to }]);
+      state.redoStack = [];
+      setHasChanges(true);
+      updateUndoRedoButtons();
+    }
+
+    showAddressInfo(p);
+  });
+}
+function matchesFilters(p) {
+  return state.activeFilters.has(p.neue_lage)
+    && state.alteLageFilters.has(p.alte_lage)
+    && state.zentralFilters.has(zentralFilterKey(p.zentral))
+    && (!state.showOpenOnly || p.alte_lage === 0);
+}
+function pointRadius() {
+  const zoom = map.getZoom();
+  if (zoom >= 17) return 6;
+  if (zoom >= 16) return 4;
+  if (zoom >= 15) return 3;
+  if (zoom >= 14) return 2;
+  return 1;
+}
+
+function pointStyle(p) {
+  const fill = lageColors[p.neue_lage] || '#9aa0a6';
+  return { renderer: canvasRenderer, radius: pointRadius(), stroke: map.getZoom() >= 18, color: '#000', weight: 1, fillColor: fill, fillOpacity: 1.0, className: 'address-point' };
+}
+
+function addLageLegend() {
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div', 'lage-legend');
+    div.innerHTML = '<strong>Wohnlage</strong>' +
+      Object.entries(lageColors)
+        .map(([value, color]) => `<div><span style="background:${color}"></span>Lage ${value}</div>`)
+        .join('');
+    return div;
+  };
+  legend.addTo(map);
+}
+
+async function loadData() {
+  const res = await fetch(DATA_URL);
+  if (!res.ok) throw new Error(`JSON konnte nicht geladen werden: ${res.status}`);
+  state.raw = await res.json();
+  for (const [street, houses] of Object.entries(state.raw)) {
+    for (const [house, arr] of Object.entries(houses)) {
+      const [lon, lat] = proj4('EPSG:25832', WGS84, [Number(arr[1]), Number(arr[2])]);
+      const p = { key: keyOf(street, house), street, house, arr, neue_lage: +arr[0], x: +arr[1], y: +arr[2], zentral: parseZentral(arr[3]), alte_lage: +arr[4] || 0, lat, lon, search: normalize(`${street} ${house}`) };
+      state.points.push(p); state.byKey.set(p.key, p);
+    }
+  }
+  renderFilter(); renderPoints(); updateStats(); updateUndoRedoButtons();
+  document.getElementById('loadStatus').textContent = `${fmt(state.points.length)} Adressen geladen. Alle Wohnlagen sichtbar.`;
+  jumpToAddressFromUrl();
+  // Startansicht bleibt fest auf Zoom 12.
+}
+
+function renderFilter() {
+  const lageWrap = document.getElementById('lageFilter');
+  if (lageWrap) {
+    lageWrap.innerHTML = '';
+    for (let value = 10; value >= 1; value--) {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" value="${value}" ${state.activeFilters.has(value) ? 'checked' : ''}> Lage ${value}`;
+      label.querySelector('input').addEventListener('change', e => {
+        e.target.checked ? state.activeFilters.add(value) : state.activeFilters.delete(value);
+        renderPoints();
+      });
+      lageWrap.appendChild(label);
+    }
+  }
+
+  const alteWrap = document.getElementById('alteLageFilter');
+  if (alteWrap) {
+    alteWrap.innerHTML = '';
+    const entries = [[0, 'nicht zugewiesen'], [5, 'sehr gut'], [4, 'gehoben'], [3, 'mittel'], [2, 'einfach'], [1, 'sehr einfach']];
+    for (const [value, text] of entries) {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" value="${value}" ${state.alteLageFilters.has(value) ? 'checked' : ''}> ${text}`;
+      label.querySelector('input').addEventListener('change', e => {
+        e.target.checked ? state.alteLageFilters.add(value) : state.alteLageFilters.delete(value);
+        renderPoints();
+      });
+      alteWrap.appendChild(label);
+    }
+  }
+
+  const zentralWrap = document.getElementById('zentralFilter');
+  if (zentralWrap) {
+    zentralWrap.innerHTML = '';
+    const entries = [['null', 'nicht zugewiesen'], ['1', 'zentral'], ['0', 'nicht zentral']];
+    for (const [value, text] of entries) {
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" value="${value}" ${state.zentralFilters.has(value) ? 'checked' : ''}> ${text}`;
+      label.querySelector('input').addEventListener('change', e => {
+        e.target.checked ? state.zentralFilters.add(value) : state.zentralFilters.delete(value);
+        renderPoints();
+      });
+      zentralWrap.appendChild(label);
+    }
+  }
+}
+
+function renderPoints() {
+  pointsLayer.clearLayers(); state.layerByKey.clear();
+  for (const p of state.points) {
+    if (!matchesFilters(p)) continue;
+    const layer = L.circleMarker([p.lat, p.lon], pointStyle(p)).addTo(pointsLayer);
+    layer.on('click', () => { showAddressInfo(p); if (state.editMode) startCoordinateEdit(p); });
+    layer.on('mouseover', () => {
+      map.getContainer().style.cursor = 'pointer';
+    });
+    layer.on('mouseout', () => {
+      map.getContainer().style.cursor = '';
+    });
+    layer.bindTooltip(`${p.street} ${p.house}<br>Neue Lage: ${p.neue_lage}<br>Zentral: ${zentralLabel(p.zentral)}<br>Alte Lage: ${alteLageLabel(p.alte_lage)}`);
+    state.layerByKey.set(p.key, layer);
+  }
+}
+
+function rawUpdate(p, zentral, alte_lage) { p.zentral = zentral === null ? null : +zentral; p.alte_lage = +alte_lage; p.arr[3] = p.zentral; p.arr[4] = p.alte_lage; }
+function applyChanges(changes, pushHistory = true) {
+  if (!changes.length) return;
+  if (pushHistory) { state.undoStack.push(changes); state.redoStack = []; }
+  for (const c of changes) { const p = state.byKey.get(c.key); rawUpdate(p, c.to.zentral, c.to.alte_lage); }
+  renderPoints();
+  updateStats(); updateUndoRedoButtons();
+}
+function makeChange(p, newValues) {
+  const to = { zentral: Object.hasOwn(newValues, 'zentral') ? newValues.zentral : p.zentral, alte_lage: Object.hasOwn(newValues, 'alte_lage') ? newValues.alte_lage : p.alte_lage };
+  if (p.zentral === to.zentral && p.alte_lage === to.alte_lage) return null;
+  return { key: p.key, from: { zentral: p.zentral, alte_lage: p.alte_lage }, to };
+}
+
+function openEditor(key) {
+  if (!state.editMode) return;
+  const p = state.byKey.get(key); state.currentEditKey = key;
+  document.getElementById('modalTitle').textContent = `${p.street} ${p.house}`;
+  document.getElementById('modalNeueLage').textContent = `Neue Lage: ${p.neue_lage}`;
+  document.querySelectorAll('input[name="zentral"]').forEach(i => i.checked = (i.value === 'null' ? p.zentral === null : +i.value === p.zentral));
+  document.querySelectorAll('input[name="alte_lage"]').forEach(i => i.checked = +i.value === p.alte_lage);
+  document.getElementById('editorModal').classList.remove('hidden');
+}
+function closeEditor() { document.getElementById('editorModal').classList.add('hidden'); state.currentEditKey = null; }
+
+function searchAddress() {
+  const q = normalize(document.getElementById('searchInput').value);
+  const out = document.getElementById('searchResult');
+  if (!q) return;
+  const p = state.points.find(x => x.search === q) || state.points.find(x => x.search.includes(q));
+  if (!p) { out.textContent = 'Nicht gefunden.'; return; }
+  out.textContent = `${p.street} ${p.house} gefunden.`;
+  showAddressInfo(p);
+  if (!matchesFilters(p)) { state.activeFilters.add(p.neue_lage); state.alteLageFilters.add(p.alte_lage); state.zentralFilters.add(zentralFilterKey(p.zentral)); renderFilter(); renderPoints(); }
+  map.setView([p.lat, p.lon], 16);
+  if (state.highlightLayer) map.removeLayer(state.highlightLayer);
+  state.highlightLayer = L.circleMarker([p.lat, p.lon], { radius: 10, color: '#111', weight: 3, fill: false }).addTo(map);
+  setTimeout(() => { if (state.highlightLayer) map.removeLayer(state.highlightLayer); state.highlightLayer = null; }, 6000);
+}
+
+
+function jumpToAddressFromUrl() {
+  if (!jumpAddress.street || !jumpAddress.house) return;
+  const point = state.byKey.get(keyOf(jumpAddress.street, jumpAddress.house));
+  if (!point) {
+    const out = document.getElementById('searchResult');
+    if (out) out.textContent = 'Übergebene Adresse nicht gefunden.';
+    return;
+  }
+  showAddressInfo(point);
+  map.setView([point.lat, point.lon], 18);
+  if (state.highlightLayer) map.removeLayer(state.highlightLayer);
+  state.highlightLayer = L.circleMarker([point.lat, point.lon], { radius: 12, color: '#111', weight: 4, fill: false }).addTo(map);
+}
+
+function setOverlay() {
+  const toggle = document.getElementById('overlayToggle');
+  if (toggle && toggle.checked) {
+    if (!map.hasLayer(wohnlagenLayer)) wohnlagenLayer.addTo(map);
+  } else {
+    if (map.hasLayer(wohnlagenLayer)) map.removeLayer(wohnlagenLayer);
+  }
+}
+
+function pointInPolygon(latlng, poly) {
+  const x = latlng.lng, y = latlng.lat; let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].lng, yi = poly[i].lat, xj = poly[j].lng, yj = poly[j].lat;
+    const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function selectByLayer(layer) {
+  state.selectedKeys.clear();
+  let poly = null, b = layer.getBounds();
+  if (layer instanceof L.Rectangle) {
+    const sw = b.getSouthWest(), ne = b.getNorthEast();
+    poly = [sw, L.latLng(sw.lat, ne.lng), ne, L.latLng(ne.lat, sw.lng)];
+  } else poly = layer.getLatLngs()[0];
+  for (const p of state.points) if (matchesFilters(p) && b.contains([p.lat, p.lon]) && pointInPolygon(L.latLng(p.lat, p.lon), poly)) state.selectedKeys.add(p.key);
+  selectionInfo.textContent = `${fmt(state.selectedKeys.size)} Adressen ausgewählt`;
+}
+
+function updateStats() {
+  const s = { total: state.points.length, bearbeitet: 0, zentral: 0, 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, offen: 0 };
+  for (const p of state.points) {
+    if (p.zentral) s.zentral++;
+    if (p.alte_lage) { s.bearbeitet++; s[p.alte_lage]++; } else s.offen++;
+  }
+  stats.innerHTML = `<dt>Gesamt</dt><dd>${fmt(s.total)}</dd><dt>Bearbeitet</dt><dd>${fmt(s.bearbeitet)}</dd><dt>Zentral</dt><dd>${fmt(s.zentral)}</dd><dt>Sehr gut</dt><dd>${fmt(s[5])}</dd><dt>Gehoben</dt><dd>${fmt(s[4])}</dd><dt>Mittel</dt><dd>${fmt(s[3])}</dd><dt>Einfach</dt><dd>${fmt(s[2])}</dd><dt>Sehr einfach</dt><dd>${fmt(s[1])}</dd><dt>Noch offen</dt><dd>${fmt(s.offen)}</dd>`;
+}
+function updateUndoRedoButtons() { undoBtn.disabled = !state.editMode || !state.undoStack.length; redoBtn.disabled = !state.editMode || !state.redoStack.length; }
+function applyHistoryChange(c, side) {
+  const p = state.byKey.get(c.key);
+  if (!p) return;
+  const values = c[side];
+  if (c.type === 'move') {
+    updatePointCoords(p, values.x, values.y);
+    if (state.dragMarker) state.dragMarker.setLatLng([p.lat, p.lon]);
+    showAddressInfo(p);
+  } else {
+    rawUpdate(p, values.zentral, values.alte_lage);
+  }
+}
+function undo() {
+  const changes = state.undoStack.pop();
+  if (!changes) return;
+  for (const c of changes) applyHistoryChange(c, 'from');
+  renderPoints();
+  state.redoStack.push(changes);
+  setHasChanges(true);
+  updateStats();
+  updateUndoRedoButtons();
+}
+function redo() {
+  const changes = state.redoStack.pop();
+  if (!changes) return;
+  for (const c of changes) applyHistoryChange(c, 'to');
+  renderPoints();
+  state.undoStack.push(changes);
+  setHasChanges(true);
+  updateStats();
+  updateUndoRedoButtons();
+}
+function exportJson() {
+  const blob = new Blob([JSON.stringify(state.raw, null, 2)], { type: 'application/json;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const now = new Date();
+  const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+  a.download = `wohnlagen_geocodiert_${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  setHasChanges(false);
+}
+
+function setEditMode(enabled) {
+  state.editMode = enabled;
+  const editInfo = document.getElementById('editInfo');
+  if (editInfo) editInfo.classList.toggle('hidden', !enabled);
+  document.getElementById('selectionSection').hidden = !enabled;
+  document.getElementById('editSection').hidden = !enabled;
+  if (enabled) {
+    if (!map.hasLayer(drawnItems)) drawnItems.addTo(map);
+    map.addControl(drawControl);
+  } else {
+    removeCoordinateEditMarker();
+    closeEditor();
+    drawnItems.clearLayers();
+    if (map.hasLayer(drawnItems)) map.removeLayer(drawnItems);
+    state.selectedKeys.clear();
+    selectionInfo.textContent = 'Keine Auswahl';
+    map.removeControl(drawControl);
+  }
+  updateUndoRedoButtons();
+}
+
+map.on('zoomend', () => {
+  for (const [key, layer] of state.layerByKey.entries()) {
+    const p = state.byKey.get(key);
+    if (p) layer.setStyle(pointStyle(p));
+  }
+});
+
+// UI events
+document.getElementById('searchBtn').onclick = searchAddress;
+document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchAddress(); });
+document.getElementById('showOpenOnly').onchange = e => { state.showOpenOnly = e.target.checked; renderPoints(); };
+document.getElementById('cancelEditBtn').onclick = closeEditor;
+document.getElementById('saveEditBtn').onclick = () => { if (!state.editMode) return; const p = state.byKey.get(state.currentEditKey); const zRaw = document.querySelector('input[name="zentral"]:checked').value; const z = zRaw === 'null' ? null : +zRaw; const a = +document.querySelector('input[name="alte_lage"]:checked').value; const ch = makeChange(p, { zentral: z, alte_lage: a }); if (ch) applyChanges([ch]); closeEditor(); };
+document.getElementById('exportBtn').onclick = exportJson;
+document.getElementById('undoBtn').onclick = undo;
+document.getElementById('redoBtn').onclick = redo;
+document.getElementById('overlayToggle').onchange = setOverlay;
+document.getElementById('editModeToggle').onchange = e => setEditMode(e.target.checked);
+document.getElementById('bulkZentralUnset').onchange = () => { if (bulkZentralUnset.checked) { bulkZentral.checked = false; bulkZentralNo.checked = false; } };
+document.getElementById('bulkZentral').onchange = () => { if (bulkZentral.checked) { bulkZentralUnset.checked = false; bulkZentralNo.checked = false; } };
+document.getElementById('bulkZentralNo').onchange = () => { if (bulkZentralNo.checked) { bulkZentralUnset.checked = false; bulkZentral.checked = false; } };
+document.getElementById('applyBulkBtn').onclick = () => {
+  if (!state.editMode) return;
+  const newValues = {};
+  if (bulkAlteLage.value !== '') newValues.alte_lage = +bulkAlteLage.value;
+  if (bulkZentralUnset.checked) newValues.zentral = null;
+  else if (bulkZentral.checked) newValues.zentral = 1;
+  else if (bulkZentralNo.checked) newValues.zentral = 0;
+  const changes = [];
+  for (const key of state.selectedKeys) { const p = state.byKey.get(key); const ch = makeChange(p, newValues); if (ch) changes.push(ch); }
+  applyChanges(changes); selectionInfo.textContent = `${fmt(state.selectedKeys.size)} ausgewählt, ${fmt(changes.length)} geändert.`;
+};
+map.on(L.Draw.Event.CREATED, e => { if (!state.editMode) return; drawnItems.clearLayers(); drawnItems.addLayer(e.layer); selectByLayer(e.layer); });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') removeCoordinateEditMarker();
+});
+window.addEventListener('beforeunload', e => {
+  if (!state.hasChanges) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
+
+addLageLegend();
+setEditMode(false);
+loadData().catch(err => { console.error(err); document.getElementById('loadStatus').textContent = err.message; });
+
+  </script>
+</body>
+</html>
