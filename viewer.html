@@ -212,6 +212,7 @@ fieldset label { display: block; margin: 5px 0; }
 proj4.defs('EPSG:25832', '+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs');
 const WGS84 = 'EPSG:4326';
 const DATA_URL = 'wohnlagen_geocodiert.json';
+const WOHNLAGEN_FLAECHEN_URL = 'wohnlagen_2022_flaechen.geojson';
 
 const params = new URLSearchParams(window.location.search);
 const jumpAddress = {
@@ -235,7 +236,10 @@ const state = {
   undoStack: [],
   redoStack: [],
   showOpenOnly: false,
-  editMode: false
+  editMode: false,
+  wohnlagenGeoJson: null,
+  wohnlagenLoaded: false,
+  wohnlagenLoading: false
 };
 
 const lageColors = {
@@ -271,16 +275,31 @@ const drawControl = new L.Control.Draw({
   edit: { featureGroup: drawnItems, edit: false },
   draw: { polyline: false, circle: false, circlemarker: false, marker: false, polygon: true, rectangle: true }
 });
-const wohnlagenLayer = L.tileLayer(
-  "assets/{z}/{x}/{y}.png",
-  {
-    minZoom: 11,
-    maxZoom: 18,
-	maxNativeZoom: 16,
-    tms: false,
-    opacity: 0.5
+const wohnlagenFlaechenColors = {
+  1: '#537fc6',
+  2: '#70c0d9',
+  3: '#64b446',
+  4: '#dfdf30',
+  5: '#ff463c'
+};
+
+const wohnlagenLayer = L.geoJSON(null, {
+  style: feature => {
+    const klasse = Number(feature?.properties?.klasse);
+    return {
+      fillColor: feature?.properties?.hex || wohnlagenFlaechenColors[klasse] || '#999999',
+      color: '#222222',
+      weight: 0.6,
+      opacity: 0.55,
+      fillOpacity: 0.45
+    };
+  },
+  onEachFeature: (feature, layer) => {
+    const klasse = feature?.properties?.klasse;
+    const farbe = feature?.properties?.farbe;
+    layer.bindTooltip(`Wohnlagenfläche ${klasse}${farbe ? ` (${farbe})` : ''}`);
   }
-);
+});
 
 const editInfo = document.createElement('div');
 editInfo.id = 'editInfo';
@@ -427,6 +446,27 @@ function addLageLegend() {
   legend.addTo(map);
 }
 
+async function loadWohnlagenFlaechen() {
+  if (state.wohnlagenLoaded || state.wohnlagenLoading) return;
+  state.wohnlagenLoading = true;
+  try {
+    const res = await fetch(WOHNLAGEN_FLAECHEN_URL);
+    if (!res.ok) throw new Error(`Wohnlagenflächen konnten nicht geladen werden: ${res.status}`);
+    state.wohnlagenGeoJson = await res.json();
+    wohnlagenLayer.clearLayers();
+    wohnlagenLayer.addData(state.wohnlagenGeoJson);
+    state.wohnlagenLoaded = true;
+    const toggle = document.getElementById('overlayToggle');
+    if (toggle && toggle.checked && !map.hasLayer(wohnlagenLayer)) wohnlagenLayer.addTo(map);
+  } catch (err) {
+    console.error(err);
+    const out = document.getElementById('searchResult');
+    if (out) out.textContent = err.message;
+  } finally {
+    state.wohnlagenLoading = false;
+  }
+}
+
 async function loadData() {
   const res = await fetch(DATA_URL);
   if (!res.ok) throw new Error(`JSON konnte nicht geladen werden: ${res.status}`);
@@ -565,7 +605,13 @@ function jumpToAddressFromUrl() {
 function setOverlay() {
   const toggle = document.getElementById('overlayToggle');
   if (toggle && toggle.checked) {
-    if (!map.hasLayer(wohnlagenLayer)) wohnlagenLayer.addTo(map);
+    if (state.wohnlagenLoaded) {
+      if (!map.hasLayer(wohnlagenLayer)) wohnlagenLayer.addTo(map);
+    } else {
+      const out = document.getElementById('searchResult');
+      if (out) out.textContent = 'Wohnlagenflächen werden geladen …';
+      loadWohnlagenFlaechen();
+    }
   } else {
     if (map.hasLayer(wohnlagenLayer)) map.removeLayer(wohnlagenLayer);
   }
