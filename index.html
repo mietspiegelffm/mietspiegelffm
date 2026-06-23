@@ -311,7 +311,7 @@ button:hover {
             <div id="addrSuggest" class="suggestions"></div>
           </div>
           <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
-          <button type="button" id="wohnlagenViewerBtn" class="viewer-map-btn">📍 Wohnlage in Karte anzeigen</button>
+          <button type="button" id="wohnlagenViewerBtn" class="viewer-map-btn">🗺️ Karte öffnen</button>
         </div>
         <div id="baualter2024Block" class="hidden">
           <label for="baualter2024"><b>Baualtersklasse</b></label>
@@ -927,6 +927,7 @@ function chooseSuggestion(idx) {
     street: it.street,
     house: it.nr
   };
+  updateViewerButton();
 }
 function updateAddressSuggestions() {
   if (!streetNames.length) { addrStatus.textContent = "Adressdaten werden geladen …"; return; }
@@ -1092,6 +1093,12 @@ function calc() {
   save();
 }
 
+function updateViewerButton() {
+  wohnlagenViewerBtn.textContent = selectedViewerAddress
+    ? "📍 Adresse in Karte anzeigen"
+    : "🗺️ Karte öffnen";
+}
+
 function openWohnlagenViewer() {
   if (!selectedViewerAddress) return;
 
@@ -1105,7 +1112,7 @@ function openWohnlagenViewer() {
 }
 
 const wohnlagenViewerBtn = document.getElementById("wohnlagenViewerBtn");
-if (wohnlagenViewerBtn) wohnlagenViewerBtn.addEventListener("click", openWohnlagenViewer);
+if (wohnlagenViewerBtn) { wohnlagenViewerBtn.addEventListener("click", openWohnlagenViewer); updateViewerButton(); }
 
 addrSearch.addEventListener("input", updateAddressSuggestions);
 addrSearch.addEventListener("focus", updateAddressSuggestions);
@@ -1125,6 +1132,8 @@ lageSel.addEventListener("change", () => {
     hideSuggestions();
     addrStatus.textContent =
       "Lage wurde manuell geändert. Adressbezug entfernt.";
+    selectedViewerAddress = null;
+    updateViewerButton();
     save();
   }
   calc();

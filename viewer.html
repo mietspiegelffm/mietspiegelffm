@@ -103,6 +103,8 @@ fieldset label { display: block; margin: 5px 0; }
   display: none;
 }
 
+.leaflet-interactive.highlight-ring { pointer-events: none !important; }
+
   </style>
 </head>
 <body>
@@ -258,6 +260,8 @@ const lageColors = {
 
 const map = L.map('map', { preferCanvas: true, minZoom: 11, maxZoom: 18 }).setView([50.1109, 8.6821], 12);
 const canvasRenderer = L.canvas({ padding: 0.5 });
+const svgRenderer = L.svg();
+
 L.tileLayer(
   'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   {
@@ -283,7 +287,11 @@ const wohnlagenFlaechenColors = {
   5: '#ff463c'
 };
 
+const wohnlagenPane = map.createPane('wohnlagenPane');
+wohnlagenPane.style.pointerEvents = 'none';
+
 const wohnlagenLayer = L.geoJSON(null, {
+  pane: 'wohnlagenPane',
   style: feature => {
     const klasse = Number(feature?.properties?.klasse);
     return {
@@ -293,13 +301,7 @@ const wohnlagenLayer = L.geoJSON(null, {
       opacity: 0.55,
       fillOpacity: 0.45
     };
-  },
-  onEachFeature: (feature, layer) => {
-    const klasse = feature?.properties?.klasse;
-    const farbe = feature?.properties?.farbe;
-    layer.bindTooltip(`Wohnlagenfläche ${klasse}${farbe ? ` (${farbe})` : ''}`);
-  }
-});
+  }});
 
 const editInfo = document.createElement('div');
 editInfo.id = 'editInfo';
@@ -457,7 +459,7 @@ async function loadWohnlagenFlaechen() {
     wohnlagenLayer.addData(state.wohnlagenGeoJson);
     state.wohnlagenLoaded = true;
     const toggle = document.getElementById('overlayToggle');
-    if (toggle && toggle.checked && !map.hasLayer(wohnlagenLayer)) wohnlagenLayer.addTo(map);
+    if (toggle && toggle.checked && !map.hasLayer(wohnlagenLayer)) { wohnlagenLayer.addTo(map); pointsLayer.bringToFront(); }
   } catch (err) {
     console.error(err);
     const out = document.getElementById('searchResult');
@@ -530,6 +532,15 @@ function renderFilter() {
   }
 }
 
+
+function updateVisibleCount() {
+  const visible = state.points.filter(matchesFilters).length;
+  const percent = (visible / state.points.length * 100).toFixed(1);
+
+  document.getElementById('loadStatus').textContent =
+    `${fmt(visible)} von ${fmt(state.points.length)} Adressen sichtbar (${percent} %)`;
+}
+
 function renderPoints() {
   pointsLayer.clearLayers(); state.layerByKey.clear();
   for (const p of state.points) {
@@ -545,6 +556,7 @@ function renderPoints() {
     layer.bindTooltip(`${p.street} ${p.house}<br>Neue Lage: ${p.neue_lage}<br>Zentral: ${zentralLabel(p.zentral)}<br>Alte Lage: ${alteLageLabel(p.alte_lage)}`);
     state.layerByKey.set(p.key, layer);
   }
+  updateVisibleCount();
 }
 
 function rawUpdate(p, zentral, alte_lage) { p.zentral = zentral === null ? null : +zentral; p.alte_lage = +alte_lage; p.arr[3] = p.zentral; p.arr[4] = p.alte_lage; }
@@ -583,7 +595,7 @@ function searchAddress() {
   if (!matchesFilters(p)) { state.activeFilters.add(p.neue_lage); state.alteLageFilters.add(p.alte_lage); state.zentralFilters.add(zentralFilterKey(p.zentral)); renderFilter(); renderPoints(); }
   map.setView([p.lat, p.lon], 16);
   if (state.highlightLayer) map.removeLayer(state.highlightLayer);
-  state.highlightLayer = L.circleMarker([p.lat, p.lon], { radius: 10, color: '#111', weight: 3, fill: false }).addTo(map);
+  state.highlightLayer = L.circleMarker([p.lat, p.lon], { renderer: svgRenderer, radius: 10, color: '#111', weight: 3, fill: false, interactive: false }).addTo(map);
   setTimeout(() => { if (state.highlightLayer) map.removeLayer(state.highlightLayer); state.highlightLayer = null; }, 6000);
 }
 
@@ -599,14 +611,37 @@ function jumpToAddressFromUrl() {
   showAddressInfo(point);
   map.setView([point.lat, point.lon], 18);
   if (state.highlightLayer) map.removeLayer(state.highlightLayer);
-  state.highlightLayer = L.circleMarker([point.lat, point.lon], { radius: 12, color: '#111', weight: 4, fill: false }).addTo(map);
+
+  const highlightGroup = L.layerGroup().addTo(map);
+
+  L.circleMarker([point.lat, point.lon], {
+    renderer: svgRenderer,
+    radius: 13,
+    color: '#ffAf00',
+    weight: 3,
+    fill: false,
+    interactive: false,
+    className: 'highlight-ring'
+  }).addTo(highlightGroup);
+
+  L.circleMarker([point.lat, point.lon], {
+    renderer: svgRenderer,
+    radius: 10,
+    color: '#ff0000',
+    weight: 3,
+    fill: false,
+    interactive: false,
+    className: 'highlight-ring'
+  }).addTo(highlightGroup);
+
+  state.highlightLayer = highlightGroup;
 }
 
 function setOverlay() {
   const toggle = document.getElementById('overlayToggle');
   if (toggle && toggle.checked) {
     if (state.wohnlagenLoaded) {
-      if (!map.hasLayer(wohnlagenLayer)) wohnlagenLayer.addTo(map);
+      if (!map.hasLayer(wohnlagenLayer)) { wohnlagenLayer.addTo(map); pointsLayer.bringToFront(); }
     } else {
       const out = document.getElementById('searchResult');
       if (out) out.textContent = 'Wohnlagenflächen werden geladen …';
