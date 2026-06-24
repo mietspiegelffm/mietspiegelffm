@@ -1100,21 +1100,31 @@ function updateViewerButton() {
 }
 
 function openWohnlagenViewer() {
-  if (!selectedViewerAddress) return;
+  let url = "viewer.html";
 
-  window.open(
-    "viewer.html?street=" +
+  if (selectedViewerAddress) {
+    url += "?street=" +
       encodeURIComponent(selectedViewerAddress.street) +
       "&house=" +
-      encodeURIComponent(selectedViewerAddress.house),
-    "_blank"
-  );
+      encodeURIComponent(selectedViewerAddress.house);
+  }
+
+  window.open(url, "_blank");
 }
 
 const wohnlagenViewerBtn = document.getElementById("wohnlagenViewerBtn");
 if (wohnlagenViewerBtn) { wohnlagenViewerBtn.addEventListener("click", openWohnlagenViewer); updateViewerButton(); }
 
-addrSearch.addEventListener("input", updateAddressSuggestions);
+addrSearch.addEventListener("input", () => {
+  if (selectedViewerAddress) {
+    const selectedText = `${selectedViewerAddress.street} ${selectedViewerAddress.house}`.trim();
+    if (addrSearch.value.trim() !== selectedText) {
+      selectedViewerAddress = null;
+      updateViewerButton();
+    }
+  }
+  updateAddressSuggestions();
+});
 addrSearch.addEventListener("focus", updateAddressSuggestions);
 addrSearch.addEventListener("keydown", (e) => {
   if (addrSuggest.style.display !== "block") return;
