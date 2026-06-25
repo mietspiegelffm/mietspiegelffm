@@ -61,6 +61,7 @@ fieldset label { display: block; margin: 5px 0; }
 .bulk-zentral-checks { display: block; margin: 6px 0 8px; }
 .bulk-zentral-checks label { display: block; margin: 4px 0; }
 #addressInfo dl { margin-top: 0; }
+#addressInfo{font-size:11px;line-height:1.2;}
 
 .edit-marker {
   color: #d00000;
@@ -105,7 +106,11 @@ fieldset label { display: block; margin: 5px 0; }
 
 .leaflet-interactive.highlight-ring { pointer-events: none !important; }
 
-  </style>
+  
+.suggestions{display:none;max-height:220px;overflow:auto;border:1px solid #ccd1d1;border-radius:6px;background:#fff;margin-top:4px}
+.suggestion{padding:6px 8px;cursor:pointer}
+.suggestion.active,.suggestion:hover{background:#eef4ff}
+</style>
 </head>
 <body>
   <aside id="sidebar">
@@ -132,7 +137,7 @@ fieldset label { display: block; margin: 5px 0; }
         <input id="searchInput" type="search" placeholder="Adresse eingeben" />
         <button id="searchBtn" type="button">Suchen</button>
       </div>
-      <div id="searchResult" class="hint"></div>
+      <div id="addrSuggest" class="suggestions"></div><div id="searchResult" class="hint"></div>
     </section>
 
     <section>
@@ -280,11 +285,11 @@ const drawControl = new L.Control.Draw({
   draw: { polyline: false, circle: false, circlemarker: false, marker: false, polygon: true, rectangle: true }
 });
 const wohnlagenFlaechenColors = {
-  1: '#537fc6',
+  1: '#ff463c',
   2: '#70c0d9',
   3: '#64b446',
   4: '#dfdf30',
-  5: '#ff463c'
+  5: '#537fc6'
 };
 
 const wohnlagenPane = map.createPane('wohnlagenPane');
@@ -293,9 +298,10 @@ wohnlagenPane.style.pointerEvents = 'none';
 const wohnlagenLayer = L.geoJSON(null, {
   pane: 'wohnlagenPane',
   style: feature => {
-    const klasse = Number(feature?.properties?.klasse);
+    const dn = Number(feature?.properties?.DN);
+
     return {
-      fillColor: feature?.properties?.hex || wohnlagenFlaechenColors[klasse] || '#999999',
+      fillColor: wohnlagenFlaechenColors[dn] || '#999999',
       color: '#222222',
       weight: 0.6,
       opacity: 0.55,
@@ -335,8 +341,6 @@ function showAddressInfo(p) {
   box.innerHTML = `<dl>
     <dt>Adresse</dt><dd>${escapeHtml(p.street)} ${escapeHtml(p.house)}</dd>
     <dt>Neue Lage</dt><dd>${escapeHtml(p.neue_lage)}</dd>
-    <dt>X (EPSG:25832)</dt><dd>${Number(p.x).toFixed(3)}</dd>
-    <dt>Y (EPSG:25832)</dt><dd>${Number(p.y).toFixed(3)}</dd>
     <dt>Zentral</dt><dd>${escapeHtml(zentralLabel(p.zentral))}</dd>
     <dt>Alte Wohnlage</dt><dd>${escapeHtml(alteLageLabel(p.alte_lage))}</dd>
   </dl>`;
@@ -459,7 +463,10 @@ async function loadWohnlagenFlaechen() {
     wohnlagenLayer.addData(state.wohnlagenGeoJson);
     state.wohnlagenLoaded = true;
     const toggle = document.getElementById('overlayToggle');
-    if (toggle && toggle.checked && !map.hasLayer(wohnlagenLayer)) { wohnlagenLayer.addTo(map); pointsLayer.bringToFront(); }
+    if (toggle && toggle.checked && !map.hasLayer(wohnlagenLayer)) { 
+	     wohnlagenLayer.addTo(map); 
+		 //pointsLayer.bringToFront(); 
+    }
   } catch (err) {
     console.error(err);
     const out = document.getElementById('searchResult');
@@ -475,9 +482,18 @@ async function loadData() {
   state.raw = await res.json();
   for (const [street, houses] of Object.entries(state.raw)) {
     for (const [house, arr] of Object.entries(houses)) {
-      const [lon, lat] = proj4('EPSG:25832', WGS84, [Number(arr[1]), Number(arr[2])]);
+      const lon = Number(arr[1]); const lat = Number(arr[2]);
       const p = { key: keyOf(street, house), street, house, arr, neue_lage: +arr[0], x: +arr[1], y: +arr[2], zentral: parseZentral(arr[3]), alte_lage: +arr[4] || 0, lat, lon, search: normalize(`${street} ${house}`) };
-      state.points.push(p); state.byKey.set(p.key, p);
+
+      const layer = L.circleMarker([lat, lon], pointStyle(p));
+      layer.on('click', () => { showAddressInfo(p); if (state.editMode) startCoordinateEdit(p); });
+      layer.on('mouseover', () => { map.getContainer().style.cursor = 'pointer'; showAddressInfo(p); });
+      layer.on('mouseout', () => { map.getContainer().style.cursor = ''; });
+
+      p.layer = layer;
+
+      state.points.push(p);
+      state.byKey.set(p.key, p);
     }
   }
   renderFilter(); renderPoints(); updateStats(); updateUndoRedoButtons();
@@ -542,19 +558,17 @@ function updateVisibleCount() {
 }
 
 function renderPoints() {
-  pointsLayer.clearLayers(); state.layerByKey.clear();
+  pointsLayer.clearLayers();
+
   for (const p of state.points) {
-    if (!matchesFilters(p)) continue;
-    const layer = L.circleMarker([p.lat, p.lon], pointStyle(p)).addTo(pointsLayer);
-    layer.on('click', () => { showAddressInfo(p); if (state.editMode) startCoordinateEdit(p); });
-    layer.on('mouseover', () => {
-      map.getContainer().style.cursor = 'pointer';
-    });
-    layer.on('mouseout', () => {
-      map.getContainer().style.cursor = '';
-    });
-    layer.bindTooltip(`${p.street} ${p.house}<br>Neue Lage: ${p.neue_lage}<br>Zentral: ${zentralLabel(p.zentral)}<br>Alte Lage: ${alteLageLabel(p.alte_lage)}`);
-    state.layerByKey.set(p.key, layer);
+    if (!p.layer) continue;
+
+    if (matchesFilters(p)) {
+      pointsLayer.addLayer(p.layer);
+      state.layerByKey.set(p.key, p.layer);
+    } else {
+      state.layerByKey.delete(p.key);
+    }
   }
   updateVisibleCount();
 }
@@ -641,7 +655,10 @@ function setOverlay() {
   const toggle = document.getElementById('overlayToggle');
   if (toggle && toggle.checked) {
     if (state.wohnlagenLoaded) {
-      if (!map.hasLayer(wohnlagenLayer)) { wohnlagenLayer.addTo(map); pointsLayer.bringToFront(); }
+      if (!map.hasLayer(wohnlagenLayer)) { 
+	    wohnlagenLayer.addTo(map); 
+		//pointsLayer.bringToFront(); 
+	  }
     } else {
       const out = document.getElementById('searchResult');
       if (out) out.textContent = 'Wohnlagenflächen werden geladen …';
@@ -751,6 +768,62 @@ map.on('zoomend', () => {
     const p = state.byKey.get(key);
     if (p) layer.setStyle(pointStyle(p));
   }
+});
+
+
+const addrSuggest=document.getElementById('addrSuggest');
+let suggestionIndex=-1;
+let suggestionHits=[];
+
+function updateSuggestions(q){
+  if(!q || q.length<2){addrSuggest.style.display='none';return;}
+  const n=normalize(q);
+  const exact=[];
+  const partial=[];
+  for(const p of state.points){
+    if(p.search.startsWith(n)) exact.push(p);
+    else if(p.search.includes(n)) partial.push(p);
+    if(exact.length+partial.length>=20) break;
+  }
+  suggestionHits=[...exact,...partial].slice(0,20);
+  if(!suggestionHits.length){addrSuggest.style.display='none';return;}
+  suggestionIndex=-1;
+  addrSuggest.innerHTML=suggestionHits.map((p,i)=>
+    `<div class="suggestion" data-i="${i}">${p.street} ${p.house}</div>`).join('');
+  addrSuggest.style.display='block';
+  addrSuggest.querySelectorAll('.suggestion').forEach(el=>{
+    el.onclick=()=>selectSuggestion(Number(el.dataset.i));
+  });
+}
+
+function selectSuggestion(i){
+  const p=suggestionHits[i];
+  if(!p) return;
+  searchInput.value=`${p.street} ${p.house}`;
+  addrSuggest.style.display='none';
+  showAddressInfo(p);
+  map.setView([p.lat,p.lon],16);
+}
+
+searchInput.addEventListener('input',e=>updateSuggestions(e.target.value));
+
+searchInput.addEventListener('keydown',e=>{
+  if(addrSuggest.style.display!=='block') return;
+  if(e.key==='ArrowDown'){
+    e.preventDefault();
+    suggestionIndex=Math.min(suggestionIndex+1,suggestionHits.length-1);
+  }else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    suggestionIndex=Math.max(suggestionIndex-1,0);
+  }else if(e.key==='Enter' && suggestionIndex>=0){
+    e.preventDefault();
+    selectSuggestion(suggestionIndex);
+    return;
+  }else if(e.key==='Escape'){
+    addrSuggest.style.display='none';
+    return;
+  }
+  addrSuggest.querySelectorAll('.suggestion').forEach((el,i)=>el.classList.toggle('active',i===suggestionIndex));
 });
 
 // UI events
