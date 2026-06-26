@@ -162,7 +162,6 @@ fieldset label { display: block; margin: 5px 0; }
       <h2>Adresssuche</h2>
       <div class="row search-row">
         <input id="searchInput" type="search" placeholder="Adresse eingeben" />
-        <button id="searchBtn" type="button">Suchen</button>
       </div>
       <div id="addrSuggest" class="suggestions"></div><div id="searchResult" class="hint"></div>
     </section>
@@ -515,8 +514,16 @@ async function loadData() {
       const p = { key: keyOf(street, house), street, house, arr, neue_lage: +arr[0], x: +arr[1], y: +arr[2], zentral: parseZentral(arr[3]), alte_lage: +arr[4] || 0, lat, lon, search: normalize(`${street} ${house}`) };
 
       const layer = L.circleMarker([lat, lon], pointStyle(p));
-      layer.on('click', () => { showAddressInfo(p); if (state.editMode) startCoordinateEdit(p); });
-      layer.on('mouseover', () => { map.getContainer().style.cursor = 'pointer'; showAddressInfo(p); });
+      layer.on('click', () => {
+        showAddressInfo(p);
+        if (typeof focusAddress === 'function') {
+          focusAddress(p, { zoom: false });
+        } else if (typeof highlightAddress === 'function') {
+          highlightAddress(p);
+        }
+        if (state.editMode) startCoordinateEdit(p);
+      });
+      layer.on('mouseover', () => { if(map.getZoom()<18) return; map.getContainer().style.cursor='pointer'; focusAddress(p, { zoom:false, pan:false }); });
       layer.on('mouseout', () => { map.getContainer().style.cursor = ''; });
 
       p.layer = layer;
@@ -632,6 +639,50 @@ function openEditor(key) {
 }
 function closeEditor() { document.getElementById('editorModal').classList.add('hidden'); state.currentEditKey = null; }
 
+function focusAddress(p, options = {}) {
+  if (!p) return;
+  const zoom = options.zoom === false ? map.getZoom() : 18;
+
+  showAddressInfo(p);
+
+  if (!matchesFilters(p)) {
+    state.activeFilters.add(p.neue_lage);
+    state.alteLageFilters.add(p.alte_lage);
+    state.zentralFilters.add(zentralFilterKey(p.zentral));
+    renderFilter();
+    renderPoints();
+  }
+
+  if (options.pan !== false) map.setView([p.lat, p.lon], zoom);
+
+  if (state.highlightLayer) map.removeLayer(state.highlightLayer);
+
+  const highlightGroup = L.layerGroup().addTo(map);
+
+  L.circleMarker([p.lat, p.lon], {
+    renderer: svgRenderer,
+    radius: 13,
+    color: '#ffAf00',
+    weight: 3,
+    fill: false,
+    interactive: false,
+    className: 'highlight-ring'
+  }).addTo(highlightGroup);
+
+  L.circleMarker([p.lat, p.lon], {
+    renderer: svgRenderer,
+    radius: 10,
+    color: '#ff0000',
+    weight: 3,
+    fill: false,
+    interactive: false,
+    className: 'highlight-ring'
+  }).addTo(highlightGroup);
+
+  state.highlightLayer = highlightGroup;
+}
+
+
 function searchAddress() {
   const q = normalize(document.getElementById('searchInput').value);
   const out = document.getElementById('searchResult');
@@ -639,12 +690,7 @@ function searchAddress() {
   const p = state.points.find(x => x.search === q) || state.points.find(x => x.search.includes(q));
   if (!p) { out.textContent = 'Nicht gefunden.'; return; }
   out.textContent = `${p.street} ${p.house} gefunden.`;
-  showAddressInfo(p);
-  if (!matchesFilters(p)) { state.activeFilters.add(p.neue_lage); state.alteLageFilters.add(p.alte_lage); state.zentralFilters.add(zentralFilterKey(p.zentral)); renderFilter(); renderPoints(); }
-  map.setView([p.lat, p.lon], 16);
-  if (state.highlightLayer) map.removeLayer(state.highlightLayer);
-  state.highlightLayer = L.circleMarker([p.lat, p.lon], { renderer: svgRenderer, radius: 10, color: '#111', weight: 3, fill: false, interactive: false }).addTo(map);
-  setTimeout(() => { if (state.highlightLayer) map.removeLayer(state.highlightLayer); state.highlightLayer = null; }, 6000);
+  focusAddress(p);
 }
 
 
@@ -656,33 +702,7 @@ function jumpToAddressFromUrl() {
     if (out) out.textContent = 'Übergebene Adresse nicht gefunden.';
     return;
   }
-  showAddressInfo(point);
-  map.setView([point.lat, point.lon], 18);
-  if (state.highlightLayer) map.removeLayer(state.highlightLayer);
-
-  const highlightGroup = L.layerGroup().addTo(map);
-
-  L.circleMarker([point.lat, point.lon], {
-    renderer: svgRenderer,
-    radius: 13,
-    color: '#ffAf00',
-    weight: 3,
-    fill: false,
-    interactive: false,
-    className: 'highlight-ring'
-  }).addTo(highlightGroup);
-
-  L.circleMarker([point.lat, point.lon], {
-    renderer: svgRenderer,
-    radius: 10,
-    color: '#ff0000',
-    weight: 3,
-    fill: false,
-    interactive: false,
-    className: 'highlight-ring'
-  }).addTo(highlightGroup);
-
-  state.highlightLayer = highlightGroup;
+  focusAddress(point);
 }
 
 function setOverlay() {
@@ -841,8 +861,7 @@ function selectSuggestion(i){
   if(!p) return;
   searchInput.value=`${p.street} ${p.house}`;
   addrSuggest.style.display='none';
-  showAddressInfo(p);
-  map.setView([p.lat,p.lon],16);
+  focusAddress(p);
 }
 
 searchInput.addEventListener('input',e=>updateSuggestions(e.target.value));
@@ -867,7 +886,7 @@ searchInput.addEventListener('keydown',e=>{
 });
 
 // UI events
-document.getElementById('searchBtn').onclick = searchAddress;
+// search button removed; dropdown and Enter use searchAddress/focusAddress
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchAddress(); });
 document.getElementById('showOpenOnly').onchange = e => { state.showOpenOnly = e.target.checked; renderPoints(); };
 document.getElementById('cancelEditBtn').onclick = closeEditor;
