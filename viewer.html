@@ -137,6 +137,32 @@ fieldset label { display: block; margin: 5px 0; }
   text-align:right;
 }
 
+
+@media (max-width:768px){
+
+  #sidebar{
+    width:min(300px,82vw);
+    max-width:100%;
+    transform:translateX(-100%);
+    transition:transform .25s ease;
+    z-index:2000;
+  }
+
+  #sidebar.open{transform:translateX(0);}
+  #map{left:0;}
+
+  #sidebarBackdrop{
+    position:fixed;inset:0;background:rgba(0,0,0,.35);
+    opacity:0;pointer-events:none;transition:opacity .2s;z-index:1900;
+  }
+  #sidebar.open + #sidebarBackdrop{
+    opacity:1;pointer-events:auto;
+  }
+  .leaflet-control-sidebar-toggle a{
+    font-size:22px;font-weight:600;text-align:center;line-height:30px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -209,6 +235,8 @@ fieldset label { display: block; margin: 5px 0; }
     </section>
   </aside>
 
+  <div id="sidebarBackdrop"></div>
+
   <main id="map"></main>
 
   <div id="editorModal" class="modal hidden" role="dialog" aria-modal="true">
@@ -278,20 +306,49 @@ const state = {
 };
 
 const lageColors = {
-  1: '#000000', // Schwarz
-  2: '#8A8A8A', // deutliches Mittelgrau
-  3: '#6A00A8', // Violett
-  4: '#1D6FF2', // Blau
-  5: '#00B5E2', // Cyan
-  6: '#00A651', // Grün
-  7: '#7FD000', // Gelbgrün
-  8: '#D9A400', // Gold
-  9: '#FF6B00', // Orange
-  10: '#C40000' // Dunkelrot
+  1: "#00204C", // Dunkelblau
+  2: "#1E3A8A", // Blau
+  3: "#355FB3", // Mittelblau
+  4: "#4F86C6", // Hellblau
+  5: "#6BAED6", // Cyan
+  6: "#7FBF7B", // Grün
+  7: "#A1C349", // Gelbgrün
+  8: "#C6B400", // Olivgelb
+  9: "#D97A00", // Orange
+  10: "#A50026" // Dunkelrot
 };
 
 
-const map = L.map('map', { preferCanvas: true, minZoom: 11, maxZoom: 18 }).setView([50.1109, 8.6821], 12);
+const map = L.map('map', { preferCanvas: true, minZoom: 11, maxZoom: 18 }).setView([50.1109, 8.6821], 13);
+
+const sidebar=document.getElementById("sidebar");
+const backdrop=document.getElementById("sidebarBackdrop");
+
+const SidebarToggle=L.Control.extend({
+ options:{position:"topleft"},
+ onAdd(){
+   const c=L.DomUtil.create("div","leaflet-bar leaflet-control leaflet-control-sidebar-toggle");
+   const a=L.DomUtil.create("a","",c);
+   a.href="#";a.title="Menü";a.innerHTML="☰";
+   L.DomEvent.disableClickPropagation(c);
+   L.DomEvent.disableScrollPropagation(c);
+   L.DomEvent.on(a,"click",e=>{
+      L.DomEvent.stop(e);
+      sidebar.classList.toggle("open");
+      map.invalidateSize();
+   });
+   return c;
+ }
+});
+const sidebarControl=new SidebarToggle();
+function isMobile(){return window.matchMedia("(max-width:768px)").matches;}
+function closeSidebarMobile(){if(!isMobile())return;sidebar.classList.remove("open");map.invalidateSize();}
+function updateMobileLayout(){
+ if(isMobile()){if(!sidebarControl._map)map.addControl(sidebarControl);}
+ else{sidebar.classList.remove("open");if(sidebarControl._map)map.removeControl(sidebarControl);}
+ map.invalidateSize();
+}
+
 const canvasRenderer = L.canvas({ padding: 0.5 });
 const svgRenderer = L.svg();
 
@@ -462,6 +519,26 @@ function pointRadius() {
   return 1;
 }
 
+
+function findNearestVisiblePoint(latlng, maxPixels = 24) {
+  const clickPt = map.latLngToContainerPoint(latlng);
+  let best = null;
+  let bestDist2 = maxPixels * maxPixels;
+
+  for (const p of state.points) {
+    if (!matchesFilters(p)) continue;
+    const pt = map.latLngToContainerPoint([p.lat, p.lon]);
+    const dx = pt.x - clickPt.x;
+    const dy = pt.y - clickPt.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 <= bestDist2) {
+      bestDist2 = d2;
+      best = p;
+    }
+  }
+  return best;
+}
+
 function pointStyle(p) {
   const fill = lageColors[p.neue_lage] || '#9aa0a6';
   return { renderer: canvasRenderer, radius: pointRadius(), stroke: map.getZoom() >= 18, color: '#000', weight: 1, fillColor: fill, fillOpacity: 1.0, className: 'address-point' };
@@ -523,9 +600,6 @@ async function loadData() {
         }
         if (state.editMode) startCoordinateEdit(p);
       });
-      layer.on('mouseover', () => { if(map.getZoom()<18) return; map.getContainer().style.cursor='pointer'; focusAddress(p, { zoom:false, pan:false }); });
-      layer.on('mouseout', () => { map.getContainer().style.cursor = ''; });
-
       p.layer = layer;
 
       state.points.push(p);
@@ -691,6 +765,7 @@ function searchAddress() {
   if (!p) { out.textContent = 'Nicht gefunden.'; return; }
   out.textContent = `${p.street} ${p.house} gefunden.`;
   focusAddress(p);
+  closeSidebarMobile();
 }
 
 
@@ -744,12 +819,53 @@ function selectByLayer(layer) {
 }
 
 function updateStats() {
-  const s = { total: state.points.length, bearbeitet: 0, zentral: 0, 5: 0, 4: 0, 3: 0, 2: 0, 1: 0, offen: 0 };
+  const showOld = document.getElementById('overlayToggle').checked;
+
+  const s = {
+    total: state.points.length,
+    bearbeitet: 0,
+    zentral: 0,
+    offen: 0
+  };
+
+  for (let i = 1; i <= 10; i++) s["n" + i] = 0;
+  for (let i = 1; i <= 5; i++) s[i] = 0;
+
   for (const p of state.points) {
-    if (p.zentral) s.zentral++;
-    if (p.alte_lage) { s.bearbeitet++; s[p.alte_lage]++; } else s.offen++;
+    s["n" + p.neue_lage]++;
+
+    if (p.zentral === 1) s.zentral++;
+
+    if (p.alte_lage) {
+      s.bearbeitet++;
+      s[p.alte_lage]++;
+    } else {
+      s.offen++;
+    }
   }
-  stats.innerHTML = `<dt>Gesamt</dt><dd>${fmt(s.total)}</dd><dt>Bearbeitet</dt><dd>${fmt(s.bearbeitet)}</dd><dt>Zentral</dt><dd>${fmt(s.zentral)}</dd><dt>Sehr gut</dt><dd>${fmt(s[5])}</dd><dt>Gehoben</dt><dd>${fmt(s[4])}</dd><dt>Mittel</dt><dd>${fmt(s[3])}</dd><dt>Einfach</dt><dd>${fmt(s[2])}</dd><dt>Sehr einfach</dt><dd>${fmt(s[1])}</dd><dt>Noch offen</dt><dd>${fmt(s.offen)}</dd>`;
+
+  let html = `
+    <dt>Gesamt</dt><dd>${fmt(s.total)}</dd>
+  `;
+
+  for (let i = 10; i >= 1; i--) {
+    html += `<dt>Lage ${i}</dt><dd>${fmt(s["n" + i])}</dd>`;
+  }
+
+  if (showOld) {
+    html += `
+      <dt>Bearbeitet</dt><dd>${fmt(s.bearbeitet)}</dd>
+      <dt>Zentral</dt><dd>${fmt(s.zentral)}</dd>
+      <dt>Sehr gut</dt><dd>${fmt(s[5])}</dd>
+      <dt>Gehoben</dt><dd>${fmt(s[4])}</dd>
+      <dt>Mittel</dt><dd>${fmt(s[3])}</dd>
+      <dt>Einfach</dt><dd>${fmt(s[2])}</dd>
+      <dt>Sehr einfach</dt><dd>${fmt(s[1])}</dd>
+      <dt>Noch offen</dt><dd>${fmt(s.offen)}</dd>
+    `;
+  }
+
+  stats.innerHTML = html;
 }
 function updateUndoRedoButtons() { undoBtn.disabled = !state.editMode || !state.undoStack.length; redoBtn.disabled = !state.editMode || !state.redoStack.length; }
 function applyHistoryChange(c, side) {
@@ -862,6 +978,7 @@ function selectSuggestion(i){
   searchInput.value=`${p.street} ${p.house}`;
   addrSuggest.style.display='none';
   focusAddress(p);
+  closeSidebarMobile();
 }
 
 searchInput.addEventListener('input',e=>updateSuggestions(e.target.value));
@@ -894,7 +1011,10 @@ document.getElementById('saveEditBtn').onclick = () => { if (!state.editMode) re
 document.getElementById('exportBtn').onclick = exportJson;
 document.getElementById('undoBtn').onclick = undo;
 document.getElementById('redoBtn').onclick = redo;
-document.getElementById('overlayToggle').onchange = setOverlay;
+document.getElementById('overlayToggle').onchange = () => {
+  setOverlay();
+  updateStats();
+};
 document.getElementById('editModeToggle').onchange = e => setEditMode(e.target.checked);
 document.getElementById('bulkZentralUnset').onchange = () => { if (bulkZentralUnset.checked) { bulkZentral.checked = false; bulkZentralNo.checked = false; } };
 document.getElementById('bulkZentral').onchange = () => { if (bulkZentral.checked) { bulkZentralUnset.checked = false; bulkZentralNo.checked = false; } };
@@ -920,6 +1040,20 @@ window.addEventListener('beforeunload', e => {
   e.preventDefault();
   e.returnValue = '';
 });
+
+
+map.on('click', e => {
+  if (state.editMode) return;
+  const p = findNearestVisiblePoint(e.latlng, 24);
+  if (!p) return;
+  showAddressInfo(p);
+  focusAddress(p, {zoom:false});
+  closeSidebarMobile();
+});
+
+backdrop.addEventListener('click',closeSidebarMobile);
+updateMobileLayout();
+window.addEventListener('resize',updateMobileLayout);
 
 addLageLegend();
 setEditMode(false);

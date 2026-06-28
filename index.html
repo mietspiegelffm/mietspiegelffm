@@ -40,7 +40,7 @@ header {
   padding:4px 0;
 }
 .wappen {
-  height:96px;
+  height:120px;
   width:auto;
   flex:none;
 }
@@ -454,7 +454,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </main>
 
 <script>
-const APP_VERSION = "2.00";
+const APP_VERSION = "2.1";
 const lage2026 = {1:0, 2:.59, 3:.77, 4:1.06, 5:1.49, 6:1.92, 7:2.46, 8:2.76, 9:4.68, 10:5.32};
 
 const feats2026 = [
@@ -615,8 +615,46 @@ function baseRent2024(a, cls) {
 
 function featureIndex(name) { return feats.findIndex(f => f[0] === name); }
 function featureCheckbox(name) { const idx = featureIndex(name); return idx >= 0 ? document.getElementById("f" + idx) : null; }
-function getFeaturePairs() { return (currentVersion()==="2024" || currentVersion()==="2022") ? [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]] : [["Hochwertiger Altbau", "Besonders hochwertiger Fußboden"]]; }
+function getFeaturePairs() {
+  return (currentVersion()==="2024" || currentVersion()==="2022")
+    ? [["Hochwertiger Altbau","Besonders hochwertiger Fußboden"]]
+    : [
+        ["Hochwertiger Altbau","Besonders hochwertiger Fußboden"],
+        ["Neubau: Baujahr 2018 bis 2025","Hochwertiger Altbau"]
+      ];
+}
 function updateMutualExclusions() {
+  const neubau = featureCheckbox("Neubau: Baujahr 2018 bis 2025");
+  const dach = featureCheckbox("Gedämmtes Dach oder Fertigstellung ab 1978");
+  const glas = featureCheckbox("Wärmeschutz-Verglasung");
+
+  if (neubau?.checked) {
+    if (dach) {
+      dach.checked = true;
+      dach.disabled = true;
+      const l=dach.closest(".feat");
+      if(l) l.dataset.note="Bei Neubau automatisch enthalten";
+    }
+    if (glas) {
+      glas.checked = true;
+      glas.disabled = true;
+      const l=glas.closest(".feat");
+      if(l) l.dataset.note="Bei Neubau automatisch enthalten";
+    }
+  } else {
+    if (dach) {
+      dach.disabled = false;
+      const l=dach.closest(".feat");
+      if(l && l.dataset.note==="Bei Neubau automatisch enthalten") delete l.dataset.note;
+    }
+    if (glas) {
+      glas.disabled = false;
+      const l=glas.closest(".feat");
+      if(l && l.dataset.note==="Bei Neubau automatisch enthalten") delete l.dataset.note;
+    }
+  }
+
+
   getFeaturePairs().forEach(([a,b]) => {
     const cbA = featureCheckbox(a), cbB = featureCheckbox(b);
     if (!cbA || !cbB) return;
