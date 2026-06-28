@@ -25,7 +25,8 @@ body {
 header {
   background:linear-gradient(135deg,var(--red),var(--red2));
   color:#fff;
-  padding:18px 0;
+  padding:8px 0;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);
 }
 .wrap {
   max-width:1200px;
@@ -35,24 +36,29 @@ header {
 .hero {
   display:flex;
   align-items:center;
-  gap:14px;
+  gap:12px;
+  padding:4px 0;
 }
 .wappen {
-  width:220px;
+  height:96px;
+  width:auto;
   flex:none;
 }
 .wappen img {
-  width:100%;
-  height:auto;
+  height:100%;
+  width:auto;
   display:block;
 }
 h1 {
   margin:0;
-  font-size:clamp(1.75rem,4vw,2.65rem);
+  font-size:clamp(1.1rem,2.5vw,1.5rem);
+  font-weight:700;
+  letter-spacing:.01em;
 }
 .subtitle {
-  margin-top:4px;
-  opacity:.95;
+  margin-top:2px;
+  opacity:.85;
+  font-size:.8rem;
 }
 .grid {
   display:grid;
@@ -238,7 +244,7 @@ button:hover {
   .features { grid-template-columns:1fr; }
   .result { position:static; }
   .hero { align-items:center; }
-  .wappen { width:92px; }
+  .wappen { height:72px; width:auto; }
 }
 @media print {
   header, button { display:none; }
@@ -286,7 +292,7 @@ button:hover {
   <section>
     <div class="card">
       <div class="formgrid">
-        <div>
+<div>
           <label for="version"><b>Mietspiegel-Version</b></label>
           <select id="version">
             <option value="2026" selected>2026</option>
@@ -295,10 +301,6 @@ button:hover {
           </select>
           <div class="version-note" id="versionNote">Straßenregister / Lage 1–10.</div>
           
-        </div>
-        <div>
-          <label for="wohnung"><b>Wohnung</b></label>
-          <input id="wohnung" type="text">
         </div>
         <div>
           <label for="area"><b>Wohnfläche</b> in m²</label>
@@ -313,30 +315,13 @@ button:hover {
           <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
           <button type="button" id="wohnlagenViewerBtn" class="viewer-map-btn">🗺️ Karte öffnen</button>
         </div>
-        <div id="baualter2024Block" class="hidden">
-          <label for="baualter2024"><b>Baualtersklasse</b></label>
-          <select id="baualter2024">
-            <option value="bis1977">bis 1977</option>
-            <option value="1978_1994">1978 bis 1994</option>
-            <option value="1995_2009">1995 bis 2009</option>
-            <option value="2010_2021">2010 bis 2021</option>
-          </select>
-        </div>
+        
+        
         <div id="lage2026Block">
-          <label for="lage"><b>Lagekategorie</b></label>
+          <label for="lage"><b>Wohnlage</b></label>
           <select id="lage"></select>
         </div>
-        <div id="compareToggleBlock">
-          <label style="margin-top:24px">
-            <input type="checkbox" id="showComparison">
-            Vergleich 2024 / 2022 anzeigen
-          </label>
-          <div style="margin-top:6px;font-size:0.85rem;">
-            <button onclick="resetAllValues()" style="background:none;color:#666;border:0;padding:0;font-weight:400;text-decoration:underline;cursor:pointer;">
-              Alle Werte zurücksetzen
-            </button>
-          </div>
-        </div>
+        
         <div id="wohnlage2024Block" class="hidden">
           <label for="wohnlage2024"><b id="wohnlageLabel">Wohnlage 2024</b></label>
           <select id="wohnlage2024">
@@ -350,6 +335,31 @@ button:hover {
             <span>Zentrale Lage</span>
             <span class="price">+1,13</span>
           </label>
+        </div>
+        
+        <div>
+          <label for="wohnung"><b>Lage im Haus <span class="small">(optional)</span></b></label>
+          <input id="wohnung" type="text">
+        </div>
+        <div id="baualter2024Block" class="hidden">
+          <label for="baualter2024"><b>Baualtersklasse</b></label>
+          <select id="baualter2024">
+            <option value="bis1977">bis 1977</option>
+            <option value="1978_1994">1978 bis 1994</option>
+            <option value="1995_2009">1995 bis 2009</option>
+            <option value="2010_2021">2010 bis 2021</option>
+          </select>
+        </div>
+        <div id="compareToggleBlock">
+          <label style="margin-top:24px">
+            <input type="checkbox" id="showComparison">
+            Vergleich 2024 / 2022 anzeigen
+          </label>
+          <div style="margin-top:6px;font-size:0.85rem;">
+            <button onclick="resetAllValues()" style="background:none;color:#666;border:0;padding:0;font-weight:400;text-decoration:underline;cursor:pointer;">
+              Alle Werte zurücksetzen
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -572,7 +582,7 @@ let activeVersion = "2026";
 for (let i=1; i<=10; i++) {
   const o = document.createElement("option");
   o.value = lage2026[i];
-  o.textContent = "Lage " + i;
+  o.textContent = `Lage ${i} (+${num(lage2026[i])} €/m²)`;
   if (i === 1) o.selected = true;
   lageSel.add(o);
 }
@@ -1075,11 +1085,13 @@ function calc() {
   if (!area.value.trim()) { document.getElementById("out").innerHTML = ""; return; }
   const c = calculation();
   if (c.error) { document.getElementById("out").innerHTML = `<div class="result-box"><b>${c.error}</b></div>`; save(); return; }
+  const is2026 = c.ver === "2026";
   const lageRowLabel = (c.ver==="2024" || c.ver==="2022") ? "Wohnlagenzuschlag" : "Lagenzuschlag";
+  const zuschlaege2026 = round2(c.lager + c.merkmaleSum);
   document.getElementById("out").innerHTML = `
-    <div class="row"><span>Basis-Netto-Miete</span><b>${num(c.basisShown)} €/m²</b></div>
-    <div class="row"><span>${lageRowLabel}</span><b>${num(c.lager)} €/m²</b></div>
-    <div class="row"><span>Zu-/Abschläge</span><b>${num(c.merkmaleSum)} €/m²</b></div>
+    <div class="row"><span>Basismiete</span><b>${num(c.basisShown)} €/m²</b></div>
+    ${!is2026 ? `<div class="row"><span>${lageRowLabel}</span><b>${num(c.lager)} €/m²</b></div>` : ""}
+    <div class="row"><span>Zu-/Abschläge</span><b>${num(is2026 ? zuschlaege2026 : c.merkmaleSum)} €/m²</b></div>
     <div class="result-title">ORTSÜBLICHE VERGLEICHSMIETE</div>
     <div class="result-values"><div class="big">${num(c.pm2Shown)} €/m²</div><div class="big">${euro(c.orts)}</div></div>
     <div class="result-box"><div class="result-title">Mietpreisbremse &amp; Mietspiegel-Spanne</div>
@@ -1319,7 +1331,7 @@ function createPDF(){
   pdf.setFontSize(18); text(euro(c.orts), pageW/2, y+34, {align:"center"}); 
   y += 54; pdf.setTextColor(...dark); pdf.setFont("helvetica","bold"); pdf.setFontSize(12); text("Berechnung", margin, y); 
   y += 7;
-  row("Basis-Netto-Miete", num(c.basisShown)+" €/m²", y);
+  row("Basismiete", num(c.basisShown)+" €/m²", y);
 
   if (c.ver === "2024" || c.ver === "2022") {
 
@@ -1336,15 +1348,11 @@ function createPDF(){
       row("Zentrale Lage", num(zentralWert) + " €/m²", y);
     }
 
-  } else {
-
-    y += 7;
-    row("Lagenzuschlag", num(c.lager) + " €/m²", y);
-
   }
 
   y += 7;
-  row("Summe Zu-/Abschläge", num(c.merkmaleSum)+" €/m²", y);
+  const merkmaleDisplay = (c.ver === "2026") ? round2(c.lager + c.merkmaleSum) : c.merkmaleSum;
+  row("Summe Zu-/Abschläge", num(merkmaleDisplay)+" €/m²", y);
   pdf.setDrawColor(...dark);
   pdf.line(pageW - 35, y+2 , pageW - margin, y+2);
   y += 7;
@@ -1362,7 +1370,10 @@ function createPDF(){
   text("Zu-/Abschläge im Detail", margin, y);
   y += 6;
   pdf.setFont("helvetica","normal"); pdf.setFontSize(7.6); pdf.setTextColor(...dark);
-  if (!c.active.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=c.active.length>22?4.2:4.8, maxRows=Math.ceil(c.active.length/2); c.active.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+10; }
+  const pdfActive = (c.ver === "2026" && c.lager !== 0)
+    ? [{name: c.lageLabel, value: c.lager}, ...c.active]
+    : c.active;
+  if (!pdfActive.length) { text("Keine Merkmale ausgewählt.", margin, y); y += 5; } else { const colGap=8, colW=(pageW-margin*2-colGap)/2, leftX=margin, rightX=margin+colW+colGap, startY=y, rowH=pdfActive.length>22?4.2:4.8, maxRows=Math.ceil(pdfActive.length/2); pdfActive.forEach((it,idx)=>{ const inRight=idx>=maxRows, localIdx=inRight?idx-maxRows:idx, x=inRight?rightX:leftX, yy=startY+localIdx*rowH; const val=(it.value>=0?"+":"")+num(it.value)+" €/m²"; let name=String(it.name).replace(/≥/g, '>='); if(name.length>42) name=name.substring(0,41)+'…'; pdf.setFont('courier','normal'); text(name,x,yy); pdf.setFont('courier','bold'); text(val,x+colW,yy,{align:'right'}); }); y=startY+maxRows*rowH+10; }
 
   pdf.setFont("helvetica","bold"); pdf.setFontSize(12);
   text("Mietpreisbremse & Mietspiegel-Spanne", margin, y);
