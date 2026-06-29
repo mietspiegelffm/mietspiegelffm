@@ -998,7 +998,21 @@ function updateAddressSuggestions() {
   addrStatus.textContent = "Vorschlag auswählen oder Lage manuell einstellen."; renderSuggestions(candidates);
 }
 function loadWohnlagen() {
-  fetch("wohnlagen_geocodiert.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen); addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
+  fetch("wohnlagen_geocodiert.json", {cache:"force-cache"}).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { wohnlagen = data || {}; streetNames = Object.keys(wohnlagen);
+
+  restoreViewerAddress();
+
+  addrStatus.textContent = "Adresssuche bereit. Adresse wählen oder Lage manuell einstellen."; updateAddressSuggestions(); }).catch(() => { addrStatus.innerHTML = '<span class="error">Adresssuche nicht geladen. Manuelle Lageauswahl ist möglich.</span>'; });
+}
+
+function restoreViewerAddress() {
+  const parsed = splitAddressQuery(addrSearch.value);
+  const street = streetNames.find(s => normText(s) === normText(parsed.street));
+  if (!street) return;
+  const entry = wohnlagen[street]?.[parsed.nr];
+  if (!entry) return;
+  selectedViewerAddress = { street, house: parsed.nr };
+  updateViewerButton();
 }
 
 function collectChecks() { return collectMainChecks(); }
@@ -1435,7 +1449,7 @@ function createPDF(){
     <h3 style="font-size:1rem;margin-bottom:10px;">Impressum / Rechtlicher Hinweis</h3>
       Privates, unverbindliches Informationsangebot basierend auf dem Mietspiegel 2026.
       Die Berechnungen dienen der Orientierung und ersetzen keine Rechtsberatung oder amtliche Auskunft.
-      Für Richtigkeit, Vollständigkeit und Aktualität wird keine Gewähr übernommen. Nutzung auf eigene Verantwortung.	
+      Nutzung auf eigene Verantwortung.	
   </div>
 </footer>
 </body>
