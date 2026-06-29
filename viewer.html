@@ -397,7 +397,7 @@ const wohnlagenLayer = L.geoJSON(null, {
 const editInfo = document.createElement('div');
 editInfo.id = 'editInfo';
 editInfo.className = 'edit-info hidden';
-editInfo.innerHTML = '✏️ Koordinaten-Bearbeitung aktiv<br>Punkt anklicken und verschieben';
+editInfo.innerHTML = '✏️ Koordinaten-Bearbeitung aktiv<br>Punkt anklicken und verschieben · Doppelklick: Zentral/Wohnlage bearbeiten';
 document.body.appendChild(editInfo);
 
 const unsavedInfo = document.createElement('div');
@@ -599,6 +599,10 @@ async function loadData() {
           highlightAddress(p);
         }
         if (state.editMode) startCoordinateEdit(p);
+      });
+      layer.on('dblclick', e => {
+        L.DomEvent.stop(e);
+        if (state.editMode) openEditor(p.key);
       });
       p.layer = layer;
 
@@ -991,9 +995,10 @@ searchInput.addEventListener('keydown',e=>{
   }else if(e.key==='ArrowUp'){
     e.preventDefault();
     suggestionIndex=Math.max(suggestionIndex-1,0);
-  }else if(e.key==='Enter' && suggestionIndex>=0){
+  }else if(e.key==='Enter'){
     e.preventDefault();
-    selectSuggestion(suggestionIndex);
+    if (suggestionIndex>=0) selectSuggestion(suggestionIndex);
+    else searchAddress();
     return;
   }else if(e.key==='Escape'){
     addrSuggest.style.display='none';
@@ -1003,8 +1008,7 @@ searchInput.addEventListener('keydown',e=>{
 });
 
 // UI events
-// search button removed; dropdown and Enter use searchAddress/focusAddress
-document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchAddress(); });
+// search button removed; dropdown and Enter use searchAddress/focusAddress (handled in the keydown listener above)
 document.getElementById('showOpenOnly').onchange = e => { state.showOpenOnly = e.target.checked; renderPoints(); };
 document.getElementById('cancelEditBtn').onclick = closeEditor;
 document.getElementById('saveEditBtn').onclick = () => { if (!state.editMode) return; const p = state.byKey.get(state.currentEditKey); const zRaw = document.querySelector('input[name="zentral"]:checked').value; const z = zRaw === 'null' ? null : +zRaw; const a = +document.querySelector('input[name="alte_lage"]:checked').value; const ch = makeChange(p, { zentral: z, alte_lage: a }); if (ch) applyChanges([ch]); closeEditor(); };
