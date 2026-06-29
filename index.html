@@ -613,8 +613,6 @@ function baseRent2024(a, cls) {
   return NaN;
 }
 
-function featureIndex(name) { return feats.findIndex(f => f[0] === name); }
-function featureCheckbox(name) { const idx = featureIndex(name); return idx >= 0 ? document.getElementById("f" + idx) : null; }
 function getFeaturePairs() {
   return (currentVersion()==="2024" || currentVersion()==="2022")
     ? [["Hochwertiger Altbau","Besonders hochwertiger Fußboden"]]
@@ -624,6 +622,10 @@ function getFeaturePairs() {
       ];
 }
 function updateMutualExclusions() {
+  const featureCheckbox = (name) => {
+    const idx = feats.findIndex(f => f[0] === name);
+    return idx >= 0 ? document.getElementById("f"+idx) : null;
+  };
   const neubau = featureCheckbox("Neubau: Baujahr 2018 bis 2025");
   const dach = featureCheckbox("Gedämmtes Dach oder Fertigstellung ab 1978");
   const glas = featureCheckbox("Wärmeschutz-Verglasung");
@@ -719,11 +721,6 @@ function renderFeatures(restoreChecks) {
 function getStoredState() {
   try { return JSON.parse(localStorage.getItem(storageKey()) || "{}"); }
   catch(e) { return {}; }
-}
-function featureMapFromArray(arr) {
-  const m = {};
-  (arr || []).forEach((f,i) => { m[f[0]] = !!arr[i]; });
-  return m;
 }
 function mergeChecksByName(...sources) {
   const out = {};
@@ -821,15 +818,6 @@ function renderCompareFeatures(restoreChecks) {
     cb.addEventListener("change", () => { updateCompareMutualExclusions(); syncMainFromCompare(); calc(); });
   });
   updateCompareMutualExclusions();
-}
-function selectedWohnlageKeyFromSelect(sel) {
-  const v = String(sel?.value ?? "0");
-  if (["sehrGut", "gehoben", "mittel", "einfach"].includes(v)) return v;
-  const n = parseDE(v);
-  if (n > 1) return "sehrGut";
-  if (n > 0) return "gehoben";
-  if (n < 0) return "einfach";
-  return "mittel";
 }
 function wohnlageValueByKey(ver, key) {
   const vals = wohnlageValues[ver] || wohnlageValues["2024"];
@@ -1015,7 +1003,6 @@ function restoreViewerAddress() {
   updateViewerButton();
 }
 
-function collectChecks() { return collectMainChecks(); }
 function storageKey() { return "ffm_mietspiegel"; }
 function save() {
   if (suppressSave) return;
@@ -1029,7 +1016,7 @@ function save() {
   state.v202x.compareZentral = !!compareZentraleLage?.checked;
   state.v202x.showComparison = !!showComparison?.checked;
   if (currentVersion()==="2026") {
-    state.v2026 = {lage: lageSel.selectedIndex, address: addrSearch.value, checks: collectChecks()};
+    state.v2026 = {lage: lageSel.selectedIndex, address: addrSearch.value, checks: collectMainChecks()};
   } else if (currentVersion()==="2024") {
     state.v2024 = {baualter: baualter2024.value, wohnlage: wohnlage2024.value, zentral: zentraleLage2024.checked};
   } else {
@@ -1060,6 +1047,14 @@ function applyVersion(ver, restoredChecks) {
   hideSuggestions();
   updateAddressSuggestions();
 }
+
+function restoreCompareState(commonChecks, wohnlage="mittel", zentral=false, show=false) {
+  if (compareWohnlage) compareWohnlage.value = wohnlage;
+  if (compareZentraleLage) compareZentraleLage.checked = !!zentral;
+  if (showComparison) showComparison.checked = !!show;
+  renderCompareFeatures(commonChecks);
+}
+
 function load() {
   suppressSave = true;
   try {
@@ -1067,10 +1062,7 @@ function load() {
     if (s.area) area.value = s.area;
     if (s.wohnung) document.getElementById("wohnung").value = s.wohnung;
     const commonChecks = mergeChecksByName(s.v202x?.checks, s.v2024?.checks, s.v2022?.checks);
-    if (compareWohnlage) compareWohnlage.value = s.v202x?.compareWohnlage || "mittel";
-    if (compareZentraleLage) compareZentraleLage.checked = !!s.v202x?.compareZentral;
-    if (showComparison) showComparison.checked = !!s.v202x?.showComparison;
-    renderCompareFeatures(commonChecks);
+    restoreCompareState(commonChecks, s.v202x?.compareWohnlage || "mittel", s.v202x?.compareZentral, s.v202x?.showComparison);
     const ver = s.version || "2026";
     if (ver === "2024") {
       const v = s.v2024 || {};
@@ -1304,10 +1296,7 @@ function importConfigFromUrl() {
     if (!Object.keys(commonChecks).length && Array.isArray(cfg.features) && (cfg.version === "2024" || cfg.version === "2022")) {
       feats2024.forEach((f,i)=>{ if(cfg.features.includes(i)) commonChecks[f[0]] = true; });
     }
-    renderCompareFeatures(commonChecks);
-    if (compareWohnlage) compareWohnlage.value = cfg.compareWohnlage || "mittel";
-    if (compareZentraleLage) compareZentraleLage.checked = !!cfg.compareZentral;
-    if (showComparison) showComparison.checked = !!cfg.showComparison;
+    restoreCompareState(commonChecks, cfg.compareWohnlage || "mittel", cfg.compareZentral, cfg.showComparison);
 
     if (cfg.version === "2024" || cfg.version === "2022") {
       applyVersion(cfg.version, commonChecks);
