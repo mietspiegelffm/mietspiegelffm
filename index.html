@@ -135,6 +135,19 @@ input[type=number], input[type=text], select {
 .addr-wrap {
   position:relative;
 }
+.addr-row{
+  display:flex;
+  align-items:stretch;
+  gap:8px;
+}
+.addr-row input{flex:1;}
+.map-icon-btn{
+  width:44px;min-width:44px;border:0;border-radius:12px;
+  background:var(--red);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;padding:0;color:#fff;font-size:22px;
+}
+.map-icon-btn:hover{filter:brightness(.95);}
+
 .suggestions {
   position:absolute;
   z-index:30;
@@ -308,12 +321,18 @@ button:hover {
         </div>
         <div id="addrBlock">
           <label for="addrSearch"><b>Adresse suchen</b> <span class="small">(optional)</span></label>
-          <div class="addr-wrap">
+          <div class="addr-wrap addr-row">
             <input id="addrSearch" type="text" autocomplete="off" placeholder="z. B. Adalbertstraße 12a">
+            <button type="button" id="wohnlagenViewerBtn" class="map-icon-btn" title="Karte suchen" aria-label="Karte suchen">
+<svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <circle cx="12" cy="12" r="9" fill="none" stroke="#fff" stroke-width="2"/>
+  <path d="M3 12H21 M12 3C9 6 9 18 12 21 M12 3C15 6 15 18 12 21 M5.5 7.5C7.5 9 16.5 9 18.5 7.5 M5.5 16.5C7.5 15 16.5 15 18.5 16.5"
+        fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>
+</svg>
+</button>
             <div id="addrSuggest" class="suggestions"></div>
           </div>
           <div id="addrStatus" class="status">Adresse wählen oder Lage manuell einstellen.</div>
-          <button type="button" id="wohnlagenViewerBtn" class="viewer-map-btn">🗺️ Karte öffnen</button>
         </div>
         
         
@@ -963,7 +982,7 @@ function chooseSuggestion(idx) {
     street: it.street,
     house: it.nr
   };
-  updateViewerButton();
+ 
 }
 function updateAddressSuggestions() {
   if (!streetNames.length) { addrStatus.textContent = "Adressdaten werden geladen …"; return; }
@@ -1000,7 +1019,7 @@ function restoreViewerAddress() {
   const entry = wohnlagen[street]?.[parsed.nr];
   if (!entry) return;
   selectedViewerAddress = { street, house: parsed.nr };
-  updateViewerButton();
+ 
 }
 
 function storageKey() { return "ffm_mietspiegel"; }
@@ -1149,11 +1168,6 @@ function calc() {
   save();
 }
 
-function updateViewerButton() {
-  wohnlagenViewerBtn.textContent = selectedViewerAddress
-    ? "📍 Adresse in Karte anzeigen"
-    : "🗺️ Karte öffnen";
-}
 
 function openWohnlagenViewer() {
   let url = "viewer.html";
@@ -1169,14 +1183,14 @@ function openWohnlagenViewer() {
 }
 
 const wohnlagenViewerBtn = document.getElementById("wohnlagenViewerBtn");
-if (wohnlagenViewerBtn) { wohnlagenViewerBtn.addEventListener("click", openWohnlagenViewer); updateViewerButton(); }
+if (wohnlagenViewerBtn) { wohnlagenViewerBtn.addEventListener("click", openWohnlagenViewer); }
 
 addrSearch.addEventListener("input", () => {
   if (selectedViewerAddress) {
     const selectedText = `${selectedViewerAddress.street} ${selectedViewerAddress.house}`.trim();
     if (addrSearch.value.trim() !== selectedText) {
       selectedViewerAddress = null;
-      updateViewerButton();
+     
     }
   }
   updateAddressSuggestions();
@@ -1199,7 +1213,7 @@ lageSel.addEventListener("change", () => {
     addrStatus.textContent =
       "Lage wurde manuell geändert. Adressbezug entfernt.";
     selectedViewerAddress = null;
-    updateViewerButton();
+   
     save();
   }
   calc();
